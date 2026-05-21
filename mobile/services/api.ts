@@ -21,8 +21,8 @@ const getBaseUrl = () => {
     return `http://${ip}:5000/api`;
   }
 
-  // Fallback to local machine IP if hostUri is unavailable (e.g. built/standalone app)
-  return 'http://10.160.81.40:5000/api';
+  // Fallback to Render cloud backend if hostUri is unavailable (e.g. built/standalone app)
+  return 'https://billsplit-backend-rpv8.onrender.com/api';
 };
 
 const BASE_URL = getBaseUrl();
