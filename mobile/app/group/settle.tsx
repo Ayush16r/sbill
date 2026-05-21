@@ -27,19 +27,32 @@ export default function SettleGroupScreen() {
   const { colors } = useTheme();
   
   const user = useAuthStore((state) => state.user);
-  const activeGroup = useGroupStore((state) => state.activeGroup);
+  const groups = useGroupStore((state) => state.groups);
+  const setGroups = useGroupStore((state) => state.setGroups);
   const showToast = useUIStore((state) => state.showToast);
 
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>((groupId as string) || null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [settlementPlan, setSettlementPlan] = useState<TransferItem[]>([]);
   const [memberBalances, setMemberBalances] = useState<any[]>([]);
   const [payingId, setPayingId] = useState<string | null>(null);
 
-  const fetchSettlementPlan = async () => {
-    if (!groupId) return;
+  const currentGroup = groups.find(g => g.id === selectedGroupId) || null;
+
+  const fetchGroups = async () => {
     try {
-      const response = await api.get(`/groups/${groupId}/balances`);
+      const response = await api.get('/groups');
+      setGroups(response.data);
+    } catch (err: any) {
+      console.error('Fetch groups error:', err);
+    }
+  };
+
+  const fetchSettlementPlan = async (id: string) => {
+    setLoading(true);
+    try {
+      const response = await api.get(`/groups/${id}/balances`);
       setSettlementPlan(response.data.settlementPlan);
       setMemberBalances(response.data.memberBalances);
     } catch (err: any) {
@@ -49,30 +62,40 @@ export default function SettleGroupScreen() {
     }
   };
 
+  useEffect(() => {
+    fetchGroups();
+  }, []);
+
+  useEffect(() => {
+    if (selectedGroupId) {
+      fetchSettlementPlan(selectedGroupId);
+    } else {
+      setLoading(false);
+    }
+  }, [selectedGroupId]);
+
   const onRefresh = async () => {
+    if (!selectedGroupId) return;
     setRefreshing(true);
-    await fetchSettlementPlan();
+    await fetchSettlementPlan(selectedGroupId);
     setRefreshing(false);
   };
 
-  useEffect(() => {
-    fetchSettlementPlan();
-  }, [groupId]);
-
   const handleSettleTransfer = async (transfer: TransferItem) => {
+    if (!selectedGroupId) return;
     setPayingId(`${transfer.from}_${transfer.to}`);
     try {
       const body = {
         receiverId: transfer.to,
         amount: transfer.amount,
-        currency: 'USD',
-        note: `Settled tab in "${activeGroup?.name || 'group'}"`,
-        groupId: groupId as string,
+        currency: user?.currency || 'INR',
+        note: `Settled tab in "${currentGroup?.name || 'group'}"`,
+        groupId: selectedGroupId,
         method: 'CARD',
       };
 
       await api.post('/payments', body);
-      showToast(`Settled ${formatCurrency(transfer.amount, 'USD')} with ${transfer.toName}!`, 'success');
+      showToast(`Settled ${formatCurrency(transfer.amount, user?.currency || 'INR')} with ${transfer.toName}!`, 'success');
       
       // Navigate to payment success screen
       router.replace({
@@ -80,8 +103,8 @@ export default function SettleGroupScreen() {
         params: {
           amount: transfer.amount.toString(),
           toName: transfer.toName,
-          groupName: activeGroup?.name || '',
-          groupId: (groupId as string) || '',
+          groupName: currentGroup?.name || '',
+          groupId: selectedGroupId,
         },
       });
     } catch (err: any) {
@@ -90,6 +113,77 @@ export default function SettleGroupScreen() {
       setPayingId(null);
     }
   };
+
+  if (!selectedGroupId) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        {/* Header bar */}
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <ArrowLeft size={22} color={colors.textPrimary} />
+          </Pressable>
+          <View style={styles.headerTitleCol}>
+            <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Settle Up</Text>
+            <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Select a group to settle</Text>
+          </View>
+          <View style={{ width: 28 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {groups.length === 0 ? (
+            <Card variant="glass" padding={24} style={styles.emptyCard}>
+              <Text style={styles.emptyEmoji}>🤝</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                You aren't in any split groups yet.
+              </Text>
+            </Card>
+          ) : (
+            groups.map((group) => {
+              const balanceColor = group.userBalance > 0 
+                ? colors.success 
+                : group.userBalance < 0 
+                  ? colors.danger 
+                  : colors.gray600;
+
+              return (
+                <Pressable
+                  key={group.id}
+                  onPress={() => setSelectedGroupId(group.id)}
+                >
+                  <Card variant="glass" padding={16} style={styles.groupCard}>
+                    <View style={styles.groupMetaRow}>
+                      <View style={[styles.groupAvatarCircle, { backgroundColor: colors.surfaceElevated }]}>
+                        <Text style={styles.groupAvatarEmoji}>
+                          {group.category === 'TRAVEL' ? '✈️' : group.category === 'HOME' ? '🏠' : group.category === 'FRIENDS' ? '🎉' : '📦'}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.groupDetails}>
+                        <Text style={[styles.groupName, { color: colors.textPrimary }]}>
+                          {group.name}
+                        </Text>
+                        <Text style={[styles.groupMembersText, { color: colors.textSecondary }]}>
+                          {group.membersCount} active members
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.balanceStatusBlock}>
+                      <Text style={[styles.balanceAmount, { color: balanceColor }]}>
+                        {group.userBalance === 0 
+                          ? 'settled' 
+                          : formatCurrency(Math.abs(group.userBalance), user?.currency || 'INR')}
+                      </Text>
+                    </View>
+                  </Card>
+                </Pressable>
+              );
+            })
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
 
   if (loading) {
     return (
@@ -104,12 +198,18 @@ export default function SettleGroupScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header bar */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={() => {
+          if (!groupId) {
+            setSelectedGroupId(null);
+          } else {
+            router.back();
+          }
+        }} style={styles.backBtn}>
           <ArrowLeft size={22} color={colors.textPrimary} />
         </Pressable>
         <View style={styles.headerTitleCol}>
           <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Optimize Settlements</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>{activeGroup?.name}</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>{currentGroup?.name}</Text>
         </View>
         <View style={{ width: 28 }} />
       </View>
@@ -127,6 +227,16 @@ export default function SettleGroupScreen() {
             BillSplit minimized total transfers using debt graph simplification.
           </Text>
         </Card>
+
+        {/* Change Group button (only if not opened directly from group detail screen) */}
+        {!groupId && (
+          <Button
+            title="Change Group"
+            variant="ghost"
+            onPress={() => setSelectedGroupId(null)}
+            style={{ marginBottom: 16 }}
+          />
+        )}
 
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Settle up checklist</Text>
         
@@ -159,7 +269,7 @@ export default function SettleGroupScreen() {
                   {/* Flow Arrow */}
                   <View style={styles.arrowCol}>
                     <Text style={[styles.transferAmountText, { color: isPayer ? colors.danger : colors.textPrimary }]}>
-                      {formatCurrency(tx.amount, 'USD')}
+                      {formatCurrency(tx.amount, user?.currency || 'INR')}
                     </Text>
                     <ArrowRight size={16} color={colors.gray400} />
                   </View>
@@ -320,5 +430,49 @@ const styles = StyleSheet.create({
   },
   settleBtn: {
     height: 40,
+  },
+  groupCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginVertical: 6,
+  },
+  groupMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  groupAvatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  groupAvatarEmoji: {
+    fontSize: 20,
+  },
+  groupDetails: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  groupName: {
+    fontSize: 16,
+    fontFamily: 'SpaceGrotesk',
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  groupMembersText: {
+    fontSize: 12,
+    fontFamily: 'Nunito',
+    fontWeight: '600',
+  },
+  balanceStatusBlock: {
+    alignItems: 'flex-end',
+  },
+  balanceAmount: {
+    fontSize: 14,
+    fontFamily: 'SpaceGrotesk',
+    fontWeight: '700',
   },
 });

@@ -5,6 +5,7 @@ import { Plus, Users, Compass, CompassIcon, ArrowUpRight, ArrowDownRight, Award 
 import { useGroupStore } from '../../store/groupStore';
 import { useUIStore } from '../../store/uiStore';
 import { useTheme } from '../../hooks/useTheme';
+import { useAuthStore } from '../../store/authStore';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -14,6 +15,7 @@ import api from '../../services/api';
 export default function GroupsScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const user = useAuthStore((state) => state.user);
   
   const groups = useGroupStore((state) => state.groups);
   const setGroups = useGroupStore((state) => state.setGroups);
@@ -179,7 +181,7 @@ export default function GroupsScreen() {
                     <Text style={[styles.balanceAmount, { color: balanceColor }]}>
                       {group.userBalance === 0 
                         ? 'settled' 
-                        : formatCurrency(Math.abs(group.userBalance), 'USD')}
+                        : formatCurrency(Math.abs(group.userBalance), user?.currency || 'INR')}
                     </Text>
                   </View>
                 </Card>

@@ -5,7 +5,9 @@ import { ArrowLeft, Check } from 'lucide-react-native';
 import { useGroupStore } from '../../store/groupStore';
 import { useUIStore } from '../../store/uiStore';
 import { useTheme } from '../../hooks/useTheme';
+import { useAuthStore } from '../../store/authStore';
 import { Input } from '../../components/ui/Input';
+import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { CATEGORIES } from '../../constants/categories';
 import api from '../../services/api';
@@ -15,8 +17,13 @@ export default function AddExpenseScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   
-  const activeGroup = useGroupStore((state) => state.activeGroup);
+  const user = useAuthStore((state) => state.user);
+  const groups = useGroupStore((state) => state.groups);
+  const setGroups = useGroupStore((state) => state.setGroups);
   const showToast = useUIStore((state) => state.showToast);
+
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>((groupId as string) || null);
+  const currentGroup = groups.find(g => g.id === selectedGroupId) || null;
 
   // Form parameters
   const [title, setTitle] = useState('');
@@ -25,12 +32,28 @@ export default function AddExpenseScreen() {
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Initialize participants from active group members
-  useEffect(() => {
-    if (activeGroup) {
-      setSelectedParticipants(activeGroup.members.map(m => m.userId));
+  // Fetch groups on mount if they are not loaded
+  const fetchGroups = async () => {
+    try {
+      const response = await api.get('/groups');
+      setGroups(response.data);
+    } catch (err: any) {
+      console.error('Fetch groups error:', err);
     }
-  }, [activeGroup]);
+  };
+
+  useEffect(() => {
+    fetchGroups();
+  }, []);
+
+  // Initialize participants from selected group members
+  useEffect(() => {
+    if (currentGroup) {
+      setSelectedParticipants(currentGroup.members.map(m => m.userId));
+    } else {
+      setSelectedParticipants([]);
+    }
+  }, [currentGroup]);
 
   const toggleParticipant = (userId: string) => {
     if (selectedParticipants.includes(userId)) {
@@ -56,6 +79,11 @@ export default function AddExpenseScreen() {
       return;
     }
 
+    if (!selectedGroupId) {
+      showToast('Please select a group first.', 'error');
+      return;
+    }
+
     if (selectedParticipants.length === 0) {
       showToast('Please select at least one split participant.', 'error');
       return;
@@ -68,7 +96,7 @@ export default function AddExpenseScreen() {
         title,
         amount: parsedAmount.toString(),
         category: selectedCategory,
-        groupId: (groupId as string) || '',
+        groupId: selectedGroupId,
         participants: JSON.stringify(selectedParticipants),
       },
     });
@@ -99,7 +127,9 @@ export default function AddExpenseScreen() {
           />
 
           <View style={styles.amountContainer}>
-            <Text style={[styles.currencyPrefix, { color: colors.primary }]}>$</Text>
+            <Text style={[styles.currencyPrefix, { color: colors.primary }]}>
+              {user?.currency === 'INR' ? '₹' : user?.currency === 'USD' ? '$' : '₹'}
+            </Text>
             <TextInput
               keyboardType="decimal-pad"
               placeholder="0.00"
@@ -110,6 +140,44 @@ export default function AddExpenseScreen() {
             />
           </View>
         </View>
+
+        {/* Group Selector (only if groupId was not passed in url search params) */}
+        {!groupId && (
+          <View style={{ marginBottom: 24 }}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Choose Group</Text>
+            {groups.length === 0 ? (
+              <Text style={{ color: colors.textSecondary, fontFamily: 'Nunito', fontSize: 12, marginHorizontal: 24 }}>
+                You aren't in any groups yet. Create a group first.
+              </Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catScroll}>
+                {groups.map((group) => {
+                  const isSelected = selectedGroupId === group.id;
+                  return (
+                    <Pressable
+                      key={group.id}
+                      onPress={() => setSelectedGroupId(group.id)}
+                      style={[
+                        styles.catChip,
+                        {
+                          backgroundColor: isSelected ? `${colors.primary}1A` : colors.surface,
+                          borderColor: isSelected ? colors.primary : colors.border,
+                        },
+                      ]}
+                    >
+                      <Text style={styles.catEmoji}>
+                        {group.category === 'TRAVEL' ? '✈️' : group.category === 'HOME' ? '🏠' : group.category === 'FRIENDS' ? '🎉' : '📦'}
+                      </Text>
+                      <Text style={[styles.catLabel, { color: isSelected ? colors.primary : colors.textSecondary }]}>
+                        {group.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        )}
 
         {/* Category Pick grid */}
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Select Category</Text>
@@ -135,7 +203,7 @@ export default function AddExpenseScreen() {
         </ScrollView>
 
         {/* Split participants selection check grid */}
-        {activeGroup && (
+        {currentGroup ? (
           <View style={styles.participantsSection}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 4 }]}>
               Split With
@@ -144,7 +212,7 @@ export default function AddExpenseScreen() {
               Choose who shares the cost of this bill
             </Text>
 
-            {activeGroup.members.map((m) => {
+            {currentGroup.members.map((m) => {
               const isChecked = selectedParticipants.includes(m.userId);
               return (
                 <Pressable
@@ -181,6 +249,17 @@ export default function AddExpenseScreen() {
                 </Pressable>
               );
             })}
+          </View>
+        ) : (
+          <View style={styles.participantsSection}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 4 }]}>
+              Split With
+            </Text>
+            <Card variant="glass" padding={20} style={{ alignItems: 'center' }}>
+              <Text style={{ color: colors.textSecondary, fontFamily: 'Nunito', fontSize: 13, textAlign: 'center' }}>
+                Please select a group first to split this expense.
+              </Text>
+            </Card>
           </View>
         )}
 

@@ -32,7 +32,7 @@ export async function signup(req: Request, res: Response) {
         email: email.toLowerCase(),
         passwordHash,
         phone: phone || null,
-        currency: currency || 'USD',
+        currency: currency || 'INR',
         avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`,
       },
     });

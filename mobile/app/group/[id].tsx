@@ -111,14 +111,14 @@ export default function GroupDetailScreen() {
           <Text style={[styles.statusAmount, { color: balanceColor }]}>
             {activeGroup.userBalance === 0 
               ? 'settled' 
-              : formatCurrency(Math.abs(activeGroup.userBalance), 'USD')}
+              : formatCurrency(Math.abs(activeGroup.userBalance), user?.currency || 'INR')}
           </Text>
 
           <View style={styles.metaSummary}>
             <View style={styles.metaCol}>
               <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Total Spent</Text>
               <Text style={[styles.metaVal, { color: colors.textPrimary }]}>
-                {formatCurrency(activeGroup.totalExpense, 'USD')}
+                {formatCurrency(activeGroup.totalExpense, user?.currency || 'INR')}
               </Text>
             </View>
             <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />

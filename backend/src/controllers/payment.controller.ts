@@ -23,7 +23,7 @@ export async function sendPayment(req: AuthRequest, res: Response) {
           senderId,
           receiverId,
           amount,
-          currency: currency || 'USD',
+          currency: currency || 'INR',
           note: note || null,
           groupId: groupId || null,
           method: method || 'CARD',

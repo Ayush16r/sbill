@@ -42,7 +42,7 @@ export async function getSummary(req: AuthRequest, res: Response) {
       owedToOthers: +owedToOthers.toFixed(2),
       owedToMe: +owedToMe.toFixed(2),
       percentageChange: +percentageDifference.toFixed(1),
-      currency: 'USD',
+      currency: 'INR',
     });
   } catch (error: any) {
     console.error('Get analytics summary error:', error);

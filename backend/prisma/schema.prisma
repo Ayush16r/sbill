@@ -41,7 +41,7 @@ model User {
   phone           String?         @unique
   avatar          String?
   passwordHash    String
-  currency        String          @default("USD")
+  currency        String          @default("INR")
   balance         Float           @default(0.0)
   isVerified      Boolean         @default(false)
   darkMode        Boolean         @default(false)
@@ -93,7 +93,7 @@ model Expense {
   id          String         @id @default(auto()) @map("_id") @db.ObjectId
   title       String
   amount      Float
-  currency    String         @default("USD")
+  currency    String         @default("INR")
   category    String         // e.g. "food", "travel"
   paidById    String         @db.ObjectId
   groupId     String?        @db.ObjectId
@@ -130,7 +130,7 @@ model Payment {
   senderId      String        @db.ObjectId
   receiverId    String        @db.ObjectId
   amount        Float
-  currency      String        @default("USD")
+  currency      String        @default("INR")
   status        PaymentStatus @default(PENDING)
   method        String?
   transactionId String?       @unique

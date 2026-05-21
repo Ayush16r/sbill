@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View, Platform } from 'react-native';
+import { StyleSheet, Text, View, Platform, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { 
   useSharedValue, 
@@ -156,7 +156,7 @@ export default function PaymentSuccessScreen() {
             Amount Settled
           </Text>
           <Text style={[styles.amountValue, { color: colors.textPrimary }]}>
-            {formatCurrency(parseFloat(amount || '0'), user?.currency || 'USD')}
+            {formatCurrency(parseFloat(amount || '0'), user?.currency || 'INR')}
           </Text>
           
           <View style={[styles.divider, { backgroundColor: colors.border }]} />

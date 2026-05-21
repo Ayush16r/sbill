@@ -284,25 +284,10 @@ export async function getGroupBalances(req: AuthRequest, res: Response) {
       return res.status(404).json({ error: 'Group not found' });
     }
 
-    // Calculate individual net balances dynamically:
-    // Net balance = (total paid in expenses) - (total split shares owed)
+    // Use transaction-safe cached balances from group members which updates dynamically on expenses and payments
     const netBalances: Record<string, number> = {};
     group.members.forEach(member => {
-      netBalances[member.userId] = 0.0;
-    });
-
-    group.expenses.forEach(expense => {
-      // Creator who paid gets positive total
-      if (netBalances[expense.paidById] !== undefined) {
-        netBalances[expense.paidById] += expense.amount;
-      }
-      
-      // Each participant owes their split amount (subtract from net balance)
-      expense.splits.forEach(split => {
-        if (netBalances[split.userId] !== undefined) {
-          netBalances[split.userId] -= split.amount;
-        }
-      });
+      netBalances[member.userId] = member.balance;
     });
 
     // Simplify the debt graph!

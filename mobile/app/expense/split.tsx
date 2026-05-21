@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Users, Percent, DollarSign, Ratio } from 'lucide-react-native';
 import { useGroupStore } from '../../store/groupStore';
 import { useUIStore } from '../../store/uiStore';
+import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../hooks/useTheme';
 import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -18,6 +19,7 @@ export default function SplitCalculatorScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   
+  const user = useAuthStore((state) => state.user);
   const activeGroup = useGroupStore((state) => state.activeGroup);
   const showToast = useUIStore((state) => state.showToast);
 
@@ -75,7 +77,8 @@ export default function SplitCalculatorScreen() {
     if (splitType === 'CUSTOM') {
       const sum = values.reduce((s, item) => s + item.num, 0);
       if (Math.abs(sum - total) > 0.05) {
-        showToast(`Amounts must sum to total: $${total.toFixed(2)} (currently $${sum.toFixed(2)})`, 'error');
+        const currency = user?.currency || 'INR';
+        showToast(`Amounts must sum to total: ${formatCurrency(total, currency)} (currently ${formatCurrency(sum, currency)})`, 'error');
         return false;
       }
     }
@@ -176,7 +179,7 @@ export default function SplitCalculatorScreen() {
         <Card variant="filled" padding={14} style={styles.summaryCard}>
           <Text style={[styles.summaryTitle, { color: colors.textSecondary }]}>Expense Total</Text>
           <Text style={[styles.summaryAmount, { color: colors.textPrimary }]}>
-            {formatCurrency(total, 'USD')}
+            {formatCurrency(total, user?.currency || 'INR')}
           </Text>
           <Text style={[styles.summarySubtitle, { color: colors.textSecondary }]}>
             Splitting between {participantIds.length} members
@@ -192,27 +195,29 @@ export default function SplitCalculatorScreen() {
             const value = inputs[id] || '';
 
             // Compute equal text representation
+            const currencyCode = user?.currency || 'INR';
+            const currencySymbol = currencyCode === 'USD' ? '$' : currencyCode === 'EUR' ? '€' : currencyCode === 'INR' ? '₹' : currencyCode;
             let inputPrefix = '';
             let isReadOnly = false;
             let computedShare = '';
 
             if (splitType === 'EQUAL') {
               isReadOnly = true;
-              computedShare = `$ ${(total / participantIds.length).toFixed(2)}`;
+              computedShare = formatCurrency(total / participantIds.length, currencyCode);
             } else if (splitType === 'PERCENTAGE') {
               inputPrefix = '%';
               const numVal = parseFloat(value) || 0;
-              computedShare = `$ ${(total * (numVal / 100)).toFixed(2)}`;
+              computedShare = formatCurrency(total * (numVal / 100), currencyCode);
             } else if (splitType === 'CUSTOM') {
-              inputPrefix = '$';
+              inputPrefix = currencySymbol;
               computedShare = `${((parseFloat(value) || 0) / total * 100).toFixed(0)} %`;
             } else if (splitType === 'SHARES') {
               inputPrefix = 'shares';
               const totalShares = Object.values(inputs).reduce((s, v) => s + (parseFloat(v) || 0), 0);
               const myShare = parseFloat(value) || 0;
               computedShare = totalShares > 0 
-                ? `$ ${(total * (myShare / totalShares)).toFixed(2)}`
-                : '$ 0.00';
+                ? formatCurrency(total * (myShare / totalShares), currencyCode)
+                : formatCurrency(0, currencyCode);
             }
 
             return (

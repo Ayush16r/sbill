@@ -45,7 +45,7 @@ export async function createExpense(req: AuthRequest, res: Response) {
           date: date ? new Date(date) : new Date(),
           notes: notes || null,
           receiptUrl: receiptUrl || null,
-          currency: currency || 'USD',
+          currency: currency || 'INR',
           splits: {
             create: calculatedSplits.map(s => ({
               userId: s.userId,
