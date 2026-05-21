@@ -1,0 +1,9 @@
+/node_modules/
+/.expo/
+/android/
+/ios/
+*.jks
+*.keystore
+web-build/
+dist/
+/dist/

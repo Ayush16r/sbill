@@ -1,0 +1,169 @@
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum GroupCategory {
+  GENERAL
+  TRAVEL
+  HOME
+  FRIENDS
+  WORK
+}
+
+enum MemberRole {
+  ADMIN
+  MEMBER
+}
+
+enum SplitType {
+  EQUAL
+  PERCENTAGE
+  CUSTOM
+  SHARES
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  email           String          @unique
+  phone           String?         @unique
+  avatar          String?
+  passwordHash    String
+  currency        String          @default("USD")
+  balance         Float           @default(0.0)
+  isVerified      Boolean         @default(false)
+  darkMode        Boolean         @default(false)
+  pushToken       String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  groupMembers    GroupMember[]
+  paidExpenses    Expense[]       @relation("PaidBy")
+  expenseSplits   ExpenseSplit[]
+  sentPayments    Payment[]       @relation("Sender")
+  receivedPayments Payment[]      @relation("Receiver")
+  notifications   Notification[]
+  paymentMethods  PaymentMethod[]
+}
+
+model Group {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  description     String?
+  avatar          String?
+  category        GroupCategory   @default(GENERAL)
+  inviteCode      String          @unique
+  createdById     String          @db.ObjectId
+  totalExpense    Float           @default(0.0)
+  isArchived      Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  members         GroupMember[]
+  expenses        Expense[]
+}
+
+model GroupMember {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String     @db.ObjectId
+  groupId   String     @db.ObjectId
+  role      MemberRole @default(MEMBER)
+  balance   Float      @default(0.0)
+  joinedAt  DateTime   @default(now())
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+}
+
+model Expense {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  amount      Float
+  currency    String         @default("USD")
+  category    String         // e.g. "food", "travel"
+  paidById    String         @db.ObjectId
+  groupId     String?        @db.ObjectId
+  notes       String?
+  receiptUrl  String?
+  splitType   SplitType      @default(EQUAL)
+  date        DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  paidBy      User           @relation("PaidBy", fields: [paidById], references: [id])
+  group       Group?         @relation(fields: [groupId], references: [id])
+  splits      ExpenseSplit[]
+}
+
+model ExpenseSplit {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  expenseId   String    @db.ObjectId
+  userId      String    @db.ObjectId
+  amount      Float
+  percentage  Float?
+  shares      Int?
+  isPaid      Boolean   @default(false)
+  paidAt      DateTime?
+
+  expense     Expense   @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, userId])
+}
+
+model Payment {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  senderId      String        @db.ObjectId
+  receiverId    String        @db.ObjectId
+  amount        Float
+  currency      String        @default("USD")
+  status        PaymentStatus @default(PENDING)
+  method        String?
+  transactionId String?       @unique
+  note          String?
+  groupId       String?       @db.ObjectId
+  createdAt     DateTime      @default(now())
+  completedAt   DateTime?
+
+  sender        User          @relation("Sender", fields: [senderId], references: [id])
+  receiver      User          @relation("Receiver", fields: [receiverId], references: [id])
+}
+
+model PaymentMethod {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  type        String   // CARD, UPI, PAYPAL, APPLE_PAY
+  displayName String
+  last4       String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  type        String   // PAYMENT_RECEIVED, EXPENSE_ADDED, REMINDER, SETTLEMENT
+  title       String
+  body        String
+  data        String?  // JSON string
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "BillSplit",
+    "slug": "billsplit-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ayush.billsplit"
+    },
+    "android": {
+      "package": "com.ayush.billsplit",
+      "usesCleartextTraffic": true
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "55dec4a1-b9a3-4846-9e8e-6d7e5072781c"
+      }
+    }
+  }
+}
