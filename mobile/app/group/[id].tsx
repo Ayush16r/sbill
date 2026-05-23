@@ -139,19 +139,18 @@ export default function GroupDetailScreen() {
           </View>
         </Card>
 
-        {/* Action Triggers Grid */}
         <View style={styles.btnRow}>
           <Pressable 
             onPress={() => router.push(`/expense/add?groupId=${activeGroup.id}`)}
             style={[styles.actionButton, { backgroundColor: colors.primary }]}
           >
-            <Plus size={18} color={colors.primaryDeep} style={{ marginRight: 6 }} />
-            <Text style={[styles.actionBtnText, { color: colors.primaryDeep }]}>Add Expense</Text>
+            <Plus size={18} color='#FFFFFF' style={{ marginRight: 6 }} />
+            <Text style={[styles.actionBtnText, { color: '#FFFFFF' }]}>Add Expense</Text>
           </Pressable>
 
           <Pressable 
             onPress={() => router.push(`/group/settle?groupId=${activeGroup.id}`)}
-            style={[styles.actionButton, { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border }]}
+            style={[styles.actionButton, { backgroundColor: colors.gray100, borderWidth: 1, borderColor: colors.border }]}
           >
             <Send size={16} color={colors.textPrimary} style={{ marginRight: 6 }} />
             <Text style={[styles.actionBtnText, { color: colors.textPrimary }]}>Settle Up</Text>

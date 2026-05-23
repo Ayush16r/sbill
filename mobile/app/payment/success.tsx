@@ -140,7 +140,7 @@ export default function PaymentSuccessScreen() {
             animatedCheckStyle
           ]}
         >
-          <Check size={48} color={colors.primaryDeep} strokeWidth={3} />
+          <Check size={48} color="#FFFFFF" strokeWidth={3} />
         </Animated.View>
         
         <Text style={[styles.successText, { color: colors.primary }]}>Payment Complete</Text>

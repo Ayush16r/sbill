@@ -1,25 +1,28 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, RefreshControl, Pressable, ActivityIndicator } from 'react-native';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Sparkles, 
-  Utensils, 
-  Plane, 
-  Home, 
-  ShoppingBag, 
-  Wine, 
-  HelpCircle, 
-  PieChart, 
-  Lightbulb, 
-  DollarSign 
+import {
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  RefreshControl,
+  Pressable,
+  ActivityIndicator,
+  Dimensions,
+} from 'react-native';
+import {
+  TrendingUp,
+  TrendingDown,
+  Sparkles,
+  Lightbulb,
+  BarChart2,
 } from 'lucide-react-native';
 import { useAuthStore } from '../../store/authStore';
 import { useUIStore } from '../../store/uiStore';
 import { useTheme } from '../../hooks/useTheme';
-import { Card } from '../../components/ui/Card';
 import { formatCurrency } from '../../utils/currency';
 import api from '../../services/api';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface CategoryItem {
   id: string;
@@ -33,8 +36,24 @@ interface GroupComparisonItem {
   balance: number;
 }
 
+const CATEGORY_META: Record<string, { emoji: string; color: string; label: string }> = {
+  food:          { emoji: '🍕', color: '#F59E0B', label: 'Food & Dining' },
+  travel:        { emoji: '✈️', color: '#3B82F6', label: 'Travel' },
+  rent:          { emoji: '🏠', color: '#EC4899', label: 'Rent & Bills' },
+  shopping:      { emoji: '🛍️', color: '#8B5CF6', label: 'Shopping' },
+  party:         { emoji: '🎉', color: '#10B981', label: 'Entertainment' },
+  utilities:     { emoji: '⚡', color: '#F59E0B', label: 'Utilities' },
+  transport:     { emoji: '🚗', color: '#06B6D4', label: 'Transport' },
+  health:        { emoji: '💊', color: '#EF4444', label: 'Health' },
+  entertainment: { emoji: '🎬', color: '#8B5CF6', label: 'Fun' },
+  other:         { emoji: '📦', color: '#6B7280', label: 'Other' },
+};
+
+// Bar chart data for months (mock visual, actual data from analytics)
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+
 export default function AnalyticsScreen() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const user = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
 
@@ -51,6 +70,8 @@ export default function AnalyticsScreen() {
   const [groupComparisons, setGroupComparisons] = useState<GroupComparisonItem[]>([]);
   const [insights, setInsights] = useState<string[]>([]);
 
+  const currency = user?.currency || 'INR';
+
   const fetchAnalytics = async () => {
     try {
       const [summaryRes, categoriesRes, groupsRes, insightsRes] = await Promise.all([
@@ -59,14 +80,12 @@ export default function AnalyticsScreen() {
         api.get('/analytics/groups'),
         api.get('/analytics/insights'),
       ]);
-
       setSummary(summaryRes.data);
-      setCategories(categoriesRes.data.breakdown);
-      setGroupComparisons(groupsRes.data);
-      setInsights(insightsRes.data.insights);
+      setCategories(categoriesRes.data.breakdown || []);
+      setGroupComparisons(groupsRes.data || []);
+      setInsights(insightsRes.data.insights || []);
     } catch (err: any) {
-      console.error('Fetch analytics error:', err);
-      showToast(err.message || 'Failed to load analytics data.', 'error');
+      console.error('Analytics fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -82,196 +101,173 @@ export default function AnalyticsScreen() {
     fetchAnalytics();
   }, []);
 
-  const getCategoryMeta = (catId: string) => {
-    switch (catId.toLowerCase()) {
-      case 'food':
-        return { icon: Utensils, color: '#F59E0B', label: 'Food & Dining' };
-      case 'travel':
-        return { icon: Plane, color: '#3B82F6', label: 'Travel & Transport' };
-      case 'rent':
-        return { icon: Home, color: '#EC4899', label: 'Rent & Bills' };
-      case 'shopping':
-        return { icon: ShoppingBag, color: '#8B5CF6', label: 'Shopping' };
-      case 'party':
-        return { icon: Wine, color: '#10B981', label: 'Entertainment' };
-      default:
-        return { icon: HelpCircle, color: '#6B7280', label: 'Other' };
-    }
-  };
-
   if (loading) {
     return (
-      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{ color: colors.textSecondary, fontFamily: 'Nunito', marginTop: 12 }}>
-          Compiling monthly split insights...
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+          Compiling insights...
         </Text>
       </View>
     );
   }
 
+  const isPositive = summary.percentageChange <= 0;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Spending Analytics</Text>
-        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Your split dynamics</Text>
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Analytics</Text>
+        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Your spending overview</Text>
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-        }
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        {/* Total Spent Hero Box */}
-        <Card variant="glass" padding={20} style={styles.heroCard}>
-          <View style={styles.heroHeader}>
-            <View>
-              <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>Total Spent this Month</Text>
-              <Text style={[styles.heroValue, { color: colors.textPrimary }]}>
-                {formatCurrency(summary.totalSpent, user?.currency || 'USD')}
-              </Text>
-            </View>
+
+        {/* ── Income Tracker Hero (matches mockup) ── */}
+        <View style={[styles.incomeCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.incomeTopRow}>
+            <Text style={[styles.incomeTitle, { color: colors.textPrimary }]}>Income Tracker</Text>
             <View style={[
-              styles.trendBadge, 
-              { backgroundColor: summary.percentageChange <= 0 ? `${colors.success}1A` : `${colors.danger}1A` }
+              styles.trendBadge,
+              { backgroundColor: isPositive ? '#DCFCE7' : '#FEE2E2' },
             ]}>
-              {summary.percentageChange <= 0 ? (
-                <TrendingDown size={14} color={colors.success} style={{ marginRight: 4 }} />
-              ) : (
-                <TrendingUp size={14} color={colors.danger} style={{ marginRight: 4 }} />
-              )}
-              <Text style={[
-                styles.trendText, 
-                { color: summary.percentageChange <= 0 ? colors.success : colors.danger }
-              ]}>
-                {Math.abs(summary.percentageChange)}%
+              {isPositive
+                ? <TrendingDown size={12} color="#16A34A" />
+                : <TrendingUp size={12} color="#DC2626" />}
+              <Text style={[styles.trendBadgeText, { color: isPositive ? '#16A34A' : '#DC2626' }]}>
+                {isPositive ? '+' : ''}{Math.abs(summary.percentageChange).toFixed(0)}%
               </Text>
             </View>
           </View>
 
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          {/* Big amount */}
+          <Text style={[styles.incomeAmount, { color: colors.textPrimary }]}>
+            {formatCurrency(summary.totalSpent, currency)}
+          </Text>
 
-          {/* Quick Net Status Tracker */}
-          <View style={styles.balanceStatusRow}>
-            <PieChart size={18} color={colors.primary} style={{ marginRight: 8 }} />
-            <Text style={[styles.statusText, { color: colors.textSecondary }]}>
-              Net Dynamic Balance: {' '}
-              <Text style={{ color: summary.totalBalance >= 0 ? colors.success : colors.danger, fontWeight: '700' }}>
-                {formatCurrency(summary.totalBalance, user?.currency || 'USD')}
-              </Text>
-            </Text>
+          {/* Simple line chart area */}
+          <View style={styles.lineChartArea}>
+            {MONTH_LABELS.map((m, i) => {
+              const heights = [30, 55, 40, 70, 50, 65];
+              return (
+                <View key={m} style={styles.lineChartCol}>
+                  <View style={[styles.lineBar, { height: heights[i], backgroundColor: colors.primary }]} />
+                  <Text style={[styles.lineLabel, { color: colors.textSecondary }]}>{m.charAt(0)}</Text>
+                </View>
+              );
+            })}
           </View>
-        </Card>
 
-        {/* AI Advisor Panel */}
-        <View style={styles.sectionHeader}>
-          <Sparkles size={18} color={colors.primary} style={{ marginRight: 8 }} />
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>AI Smart Insights</Text>
+          {/* Two stat cols */}
+          <View style={[styles.statsRow, { borderTopColor: colors.border }]}>
+            <View style={styles.statCol}>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Last Month</Text>
+              <View style={styles.statValueRow}>
+                <Text style={[styles.statPct, { color: '#EF4444' }]}>43%</Text>
+                <BarChart2 size={14} color="#EF4444" style={{ marginLeft: 4 }} />
+              </View>
+            </View>
+            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+            <View style={styles.statCol}>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Last Quarter</Text>
+              <View style={styles.statValueRow}>
+                <Text style={[styles.statPct, { color: '#22C55E' }]}>15%</Text>
+                <TrendingUp size={14} color="#22C55E" style={{ marginLeft: 4 }} />
+              </View>
+            </View>
+          </View>
         </View>
 
-        <Card variant="glow" padding={18} style={styles.insightsCard}>
+        {/* ── Get a new card promo ── */}
+        <Pressable style={[styles.promoCard, { backgroundColor: '#1C1C1E' }]}>
+          <View>
+            <Text style={styles.promoText}>Get a new card type</Text>
+            <Text style={styles.promoSubText}>View More →</Text>
+          </View>
+          <Text style={styles.promoEmoji}>💳</Text>
+        </Pressable>
+
+        {/* ── AI Insights ── */}
+        <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.sectionHeader}>
+            <Sparkles size={16} color={colors.primary} />
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>AI Smart Insights</Text>
+          </View>
           {insights.length === 0 ? (
             <Text style={[styles.noInsightsText, { color: colors.textSecondary }]}>
-              No insights available yet. Spend and settle bills to train your personal AI Advisor!
+              Add expenses and settle bills to unlock personal AI insights!
             </Text>
           ) : (
             insights.map((insight, idx) => (
-              <View key={idx} style={styles.insightItem}>
-                <View style={[styles.insightBulletCircle, { backgroundColor: colors.primary }]}>
-                  <Lightbulb size={12} color={colors.primaryDeep} />
+              <View key={idx} style={styles.insightRow}>
+                <View style={[styles.insightDot, { backgroundColor: colors.primary }]}>
+                  <Lightbulb size={10} color="#FFFFFF" />
                 </View>
                 <Text style={[styles.insightText, { color: colors.textPrimary }]}>{insight}</Text>
               </View>
             ))
           )}
-        </Card>
+        </View>
 
-        {/* Category breakdown progress grids */}
-        <Text style={[styles.sectionTitleText, { color: colors.textPrimary }]}>Category Distribution</Text>
-        
-        {categories.length === 0 ? (
-          <Card variant="glass" padding={24} style={styles.emptyCard}>
-            <Text style={[styles.emptyEmoji]}>📊</Text>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              No categories mapped yet. Add some expenses with categories like "food", "rent", or "travel".
+        {/* ── Category Distribution ── */}
+        <Text style={[styles.sectionTitleStandalone, { color: colors.textPrimary }]}>Category Distribution</Text>
+        <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {categories.length === 0 ? (
+            <Text style={[styles.noInsightsText, { color: colors.textSecondary }]}>
+              No category data yet. Add expenses to see your spending breakdown!
             </Text>
-          </Card>
-        ) : (
-          <Card variant="glass" padding={16} style={styles.categoriesCard}>
-            {categories.map((item) => {
-              const meta = getCategoryMeta(item.id);
-              const IconComp = meta.icon;
+          ) : (
+            categories.map((item) => {
+              const meta = CATEGORY_META[item.id.toLowerCase()] || { emoji: '📦', color: '#6B7280', label: item.id };
               return (
-                <View key={item.id} style={styles.categoryRow}>
-                  {/* Icon Column */}
-                  <View style={[styles.catIconCircle, { backgroundColor: `${meta.color}1E` }]}>
-                    <IconComp size={16} color={meta.color} />
-                  </View>
-                  
-                  {/* Progress Column */}
-                  <View style={styles.progressCol}>
-                    <View style={styles.progressHeader}>
+                <View key={item.id} style={styles.catRow}>
+                  <Text style={styles.catEmoji}>{meta.emoji}</Text>
+                  <View style={styles.catInfoCol}>
+                    <View style={styles.catTopRow}>
                       <Text style={[styles.catLabel, { color: colors.textPrimary }]}>{meta.label}</Text>
                       <Text style={[styles.catAmount, { color: colors.textPrimary }]}>
-                        {formatCurrency(item.amount, user?.currency || 'USD')}
+                        {formatCurrency(item.amount, currency)}
                       </Text>
                     </View>
-                    
-                    {/* Glowing Track */}
-                    <View style={[styles.progressBarTrack, { backgroundColor: colors.surfaceElevated }]}>
-                      <View style={[
-                        styles.progressBarFill, 
-                        { 
-                          width: `${item.percentage}%`, 
-                          backgroundColor: meta.color,
-                          shadowColor: meta.color,
-                        }
-                      ]} />
+                    <View style={[styles.progressTrack, { backgroundColor: colors.gray100 }]}>
+                      <View style={[styles.progressFill, { width: `${Math.min(item.percentage, 100)}%`, backgroundColor: meta.color }]} />
                     </View>
-                    <Text style={[styles.catPercent, { color: colors.textSecondary }]}>
-                      {item.percentage}% of dynamic spending
-                    </Text>
+                    <Text style={[styles.catPct, { color: colors.textSecondary }]}>{item.percentage.toFixed(0)}%</Text>
                   </View>
                 </View>
               );
-            })}
-          </Card>
-        )}
+            })
+          )}
+        </View>
 
-        {/* Peer Debts Comparison Matrix */}
-        <Text style={[styles.sectionTitleText, { color: colors.textPrimary }]}>Active Group Standings</Text>
-
+        {/* ── Group Standings ── */}
+        <Text style={[styles.sectionTitleStandalone, { color: colors.textPrimary }]}>Active Group Standings</Text>
         {groupComparisons.length === 0 ? (
-          <Card variant="glass" padding={20} style={styles.emptyCard}>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              You are not a member of any active groups yet. Create a group to split peer balances!
+          <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.noInsightsText, { color: colors.textSecondary }]}>
+              Join groups to see your per-group balances!
             </Text>
-          </Card>
+          </View>
         ) : (
           groupComparisons.map((g) => {
             const isOwed = g.balance >= 0;
             return (
-              <Card key={g.groupId} variant="glass" padding={14} style={styles.groupCard}>
-                <View style={styles.groupRow}>
-                  <View style={styles.groupTextCol}>
-                    <Text style={[styles.groupNameText, { color: colors.textPrimary }]}>{g.groupName}</Text>
-                    <Text style={[styles.groupStandingsLabel, { color: colors.textSecondary }]}>
-                      {isOwed ? 'Settlement Asset' : 'Pending Settlement'}
-                    </Text>
-                  </View>
-                  <View style={styles.groupBalanceCol}>
-                    <Text style={[
-                      styles.groupBalanceText, 
-                      { color: isOwed ? colors.success : colors.danger }
-                    ]}>
-                      {isOwed ? '+' : ''}{formatCurrency(g.balance, user?.currency || 'USD')}
-                    </Text>
-                  </View>
+              <View key={g.groupId} style={[styles.groupStandingCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View>
+                  <Text style={[styles.groupStandingName, { color: colors.textPrimary }]}>{g.groupName}</Text>
+                  <Text style={[styles.groupStandingStatus, { color: colors.textSecondary }]}>
+                    {isOwed ? 'Settlement Asset' : 'Pending Settlement'}
+                  </Text>
                 </View>
-              </Card>
+                <Text style={[styles.groupStandingBalance, { color: isOwed ? colors.success : colors.danger }]}>
+                  {isOwed ? '+' : ''}{formatCurrency(g.balance, currency)}
+                </Text>
+              </View>
             );
           })
         )}
@@ -281,231 +277,97 @@ export default function AnalyticsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  container: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { fontSize: 13, fontFamily: 'Nunito', fontWeight: '600', marginTop: 12 },
   header: {
-    paddingHorizontal: 24,
-    paddingTop: 56,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 52,
+    paddingBottom: 12,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontFamily: 'SpaceGrotesk',
-    fontWeight: '700',
+  headerTitle: { fontSize: 24, fontFamily: 'SpaceGrotesk', fontWeight: '800' },
+  headerSubtitle: { fontSize: 13, fontFamily: 'Nunito', fontWeight: '600', marginTop: 2 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
+
+  incomeCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  headerSubtitle: {
-    fontSize: 12,
-    fontFamily: 'Nunito',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 40,
-  },
-  heroCard: {
-    marginBottom: 24,
-  },
-  heroHeader: {
+  incomeTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  incomeTitle: { fontSize: 15, fontFamily: 'SpaceGrotesk', fontWeight: '700' },
+  trendBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, gap: 4 },
+  trendBadgeText: { fontSize: 12, fontFamily: 'SpaceGrotesk', fontWeight: '700' },
+  incomeAmount: { fontSize: 30, fontFamily: 'SpaceGrotesk', fontWeight: '900', marginBottom: 16, letterSpacing: -0.5 },
+  lineChartArea: { flexDirection: 'row', alignItems: 'flex-end', height: 80, marginBottom: 16, gap: 8 },
+  lineChartCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  lineBar: { width: '100%', borderRadius: 4 },
+  lineLabel: { fontSize: 10, fontFamily: 'Nunito', fontWeight: '600', marginTop: 4 },
+  statsRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, paddingTop: 14 },
+  statCol: { flex: 1, alignItems: 'center' },
+  statDivider: { width: 1, height: 32 },
+  statLabel: { fontSize: 11, fontFamily: 'Nunito', fontWeight: '600', marginBottom: 4 },
+  statValueRow: { flexDirection: 'row', alignItems: 'center' },
+  statPct: { fontSize: 20, fontFamily: 'SpaceGrotesk', fontWeight: '800' },
+
+  promoCard: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  heroLabel: {
-    fontSize: 11,
-    fontFamily: 'Nunito',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  heroValue: {
-    fontSize: 28,
-    fontFamily: 'SpaceGrotesk',
-    fontWeight: '900',
-    marginTop: 4,
-    letterSpacing: -0.5,
-  },
-  trendBadge: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
   },
-  trendText: {
-    fontSize: 11,
+  promoText: { fontSize: 15, fontFamily: 'SpaceGrotesk', fontWeight: '700', color: '#FFFFFF', marginBottom: 4 },
+  promoSubText: { fontSize: 12, fontFamily: 'Nunito', fontWeight: '700', color: '#22C55E' },
+  promoEmoji: { fontSize: 40 },
+
+  sectionCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 18,
+    marginBottom: 16,
+  },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontFamily: 'SpaceGrotesk', fontWeight: '700' },
+  sectionTitleStandalone: {
+    fontSize: 16,
     fontFamily: 'SpaceGrotesk',
     fontWeight: '700',
-  },
-  divider: {
-    height: 1,
-    width: '100%',
-    marginVertical: 16,
-    opacity: 0.1,
-  },
-  balanceStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusText: {
-    fontSize: 12,
-    fontFamily: 'Nunito',
-    fontWeight: '600',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontFamily: 'SpaceGrotesk',
-    fontWeight: '700',
-  },
-  insightsCard: {
-    marginBottom: 24,
-  },
-  noInsightsText: {
-    fontSize: 11,
-    fontFamily: 'Nunito',
-    fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  insightItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginVertical: 8,
-  },
-  insightBulletCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-    marginTop: 2,
-  },
-  insightText: {
-    fontSize: 12,
-    fontFamily: 'Nunito',
-    fontWeight: '600',
-    flex: 1,
-    lineHeight: 18,
-  },
-  sectionTitleText: {
-    fontSize: 15,
-    fontFamily: 'SpaceGrotesk',
-    fontWeight: '700',
-    marginBottom: 12,
-    marginTop: 8,
-  },
-  emptyCard: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  emptyEmoji: {
-    fontSize: 28,
     marginBottom: 10,
   },
-  emptyText: {
-    fontSize: 11,
-    fontFamily: 'Nunito',
-    fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  categoriesCard: {
-    marginBottom: 20,
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginVertical: 10,
-  },
-  catIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    marginTop: 2,
-  },
-  progressCol: {
-    flex: 1,
-  },
-  progressHeader: {
+  noInsightsText: { fontSize: 13, fontFamily: 'Nunito', fontWeight: '600', textAlign: 'center', lineHeight: 20 },
+
+  insightRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 10 },
+  insightDot: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginTop: 2 },
+  insightText: { fontSize: 13, fontFamily: 'Nunito', fontWeight: '600', flex: 1, lineHeight: 20 },
+
+  catRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 12 },
+  catEmoji: { fontSize: 24 },
+  catInfoCol: { flex: 1 },
+  catTopRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  catLabel: { fontSize: 13, fontFamily: 'Nunito', fontWeight: '700' },
+  catAmount: { fontSize: 13, fontFamily: 'SpaceGrotesk', fontWeight: '700' },
+  progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 4 },
+  progressFill: { height: '100%', borderRadius: 3 },
+  catPct: { fontSize: 10, fontFamily: 'Nunito', fontWeight: '600' },
+
+  groupStandingCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 10,
   },
-  catLabel: {
-    fontSize: 12,
-    fontFamily: 'Nunito',
-    fontWeight: '700',
-  },
-  catAmount: {
-    fontSize: 12,
-    fontFamily: 'SpaceGrotesk',
-    fontWeight: '700',
-  },
-  progressBarTrack: {
-    height: 6,
-    borderRadius: 3,
-    width: '100%',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 3,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-  },
-  catPercent: {
-    fontSize: 9,
-    fontFamily: 'Nunito',
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  groupCard: {
-    marginVertical: 4,
-  },
-  groupRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  groupTextCol: {
-    flex: 1,
-  },
-  groupNameText: {
-    fontSize: 13,
-    fontFamily: 'SpaceGrotesk',
-    fontWeight: '700',
-  },
-  groupStandingsLabel: {
-    fontSize: 10,
-    fontFamily: 'Nunito',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  groupBalanceCol: {
-    alignItems: 'flex-end',
-  },
-  groupBalanceText: {
-    fontSize: 15,
-    fontFamily: 'SpaceGrotesk',
-    fontWeight: '900',
-  },
+  groupStandingName: { fontSize: 14, fontFamily: 'SpaceGrotesk', fontWeight: '700', marginBottom: 2 },
+  groupStandingStatus: { fontSize: 11, fontFamily: 'Nunito', fontWeight: '600' },
+  groupStandingBalance: { fontSize: 16, fontFamily: 'SpaceGrotesk', fontWeight: '800' },
 });

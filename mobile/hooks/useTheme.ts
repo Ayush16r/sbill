@@ -1,25 +1,43 @@
-// hooks/useTheme.ts
-import { useColorScheme } from 'react-native';
+// hooks/useTheme.ts — Light theme by default matching the mockup
+import { useUIStore } from '../store/uiStore';
 import { colors } from '../constants/colors';
 
 export function useTheme() {
-  const scheme = useColorScheme();
-  const isDark = scheme === 'dark';
+  const isDark = useUIStore((state) => state.isDark);
+
+  const lightColors = {
+    ...colors,
+    background:      '#FFFFFF',
+    surface:         '#FFFFFF',
+    surfaceElevated: '#F9FAFB',
+    textPrimary:     '#111827',
+    textSecondary:   '#6B7280',
+    border:          '#E5E7EB',
+    cardBg:          '#FFFFFF',
+    cardGlow:        'rgba(34, 197, 94, 0.08)',
+    textOnPrimary:   '#FFFFFF',
+    inputBg:         '#F9FAFB',
+    shadow:          'rgba(0,0,0,0.08)',
+  };
+
+  const darkColors = {
+    ...colors,
+    background:      '#0A0A0A',
+    surface:         '#1A1A1A',
+    surfaceElevated: '#1F1F1F',
+    textPrimary:     '#FFFFFF',
+    textSecondary:   '#9CA3AF',
+    border:          '#2A2A2A',
+    cardBg:          'rgba(26,26,26,0.85)',
+    cardGlow:        'rgba(34, 197, 94, 0.12)',
+    textOnPrimary:   '#FFFFFF',
+    inputBg:         '#1F1F1F',
+    shadow:          'rgba(0,0,0,0.4)',
+  };
 
   return {
     isDark,
-    colors: {
-      ...colors,
-      background: isDark ? colors.black : colors.primaryBg,
-      surface: isDark ? colors.dark100 : colors.white,
-      surfaceElevated: isDark ? colors.dark200 : colors.gray50,
-      textPrimary: isDark ? colors.white : colors.black,
-      textSecondary: isDark ? colors.gray400 : colors.gray600,
-      border: isDark ? colors.dark300 : colors.gray200,
-      cardBg: isDark ? 'rgba(26, 26, 26, 0.85)' : 'rgba(255, 255, 255, 0.9)',
-      cardGlow: isDark ? 'rgba(74, 222, 128, 0.12)' : 'rgba(74, 222, 128, 0.05)',
-      textOnPrimary: colors.primaryDeep,
-    },
+    colors: isDark ? darkColors : lightColors,
   };
 }
 

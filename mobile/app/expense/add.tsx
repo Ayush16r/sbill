@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Pressable, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Check } from 'lucide-react-native';
 import { useGroupStore } from '../../store/groupStore';
@@ -13,7 +13,7 @@ import { CATEGORIES } from '../../constants/categories';
 import api from '../../services/api';
 
 export default function AddExpenseScreen() {
-  const { groupId } = useLocalSearchParams();
+  const { groupId, scannedTitle } = useLocalSearchParams();
   const router = useRouter();
   const { colors } = useTheme();
   
@@ -25,8 +25,11 @@ export default function AddExpenseScreen() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>((groupId as string) || null);
   const currentGroup = groups.find(g => g.id === selectedGroupId) || null;
 
-  // Form parameters
-  const [title, setTitle] = useState('');
+  const currency = user?.currency || 'INR';
+  const currencySymbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹';
+
+  // Form parameters — pre-fill from camera scan if available
+  const [title, setTitle] = useState((scannedTitle as string) || '');
   const [amount, setAmount] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('food');
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
@@ -128,7 +131,7 @@ export default function AddExpenseScreen() {
 
           <View style={styles.amountContainer}>
             <Text style={[styles.currencyPrefix, { color: colors.primary }]}>
-              {user?.currency === 'INR' ? '₹' : user?.currency === 'USD' ? '$' : '₹'}
+              {currencySymbol}
             </Text>
             <TextInput
               keyboardType="decimal-pad"
@@ -274,8 +277,7 @@ export default function AddExpenseScreen() {
   );
 }
 
-// Inline TextInput declaration for ease
-import { TextInput } from 'react-native';
+// (TextInput imported at top)
 
 const styles = StyleSheet.create({
   container: {

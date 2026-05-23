@@ -5,17 +5,39 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ayush.billsplit"
+      "bundleIdentifier": "com.ayush.billsplit",
+      "infoPlist": {
+        "NSCameraUsageDescription": "BillSplit uses your camera to scan receipts and auto-fill expense details.",
+        "NSPhotoLibraryUsageDescription": "BillSplit uses your photo library to attach receipt images to expenses."
+      }
     },
     "android": {
       "package": "com.ayush.billsplit",
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "BillSplit uses your camera to scan receipts.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "extra": {
       "router": {

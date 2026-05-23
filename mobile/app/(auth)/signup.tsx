@@ -55,7 +55,7 @@ export default function SignupScreen() {
         email,
         password,
         phone: phone || undefined,
-        currency: 'USD',
+        currency: 'INR',
       });
       const { token, user } = response.data;
       

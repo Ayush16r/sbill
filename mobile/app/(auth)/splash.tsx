@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withRepeat, 
-  withTiming, 
-  withSequence 
+import { StyleSheet, Text, View, Image } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  withRepeat,
+  Easing,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
@@ -16,54 +17,74 @@ export default function SplashScreenView() {
   const { colors } = useTheme();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  // Logo animation values
-  const scale = useSharedValue(0.9);
-  const opacity = useSharedValue(0.2);
+  const scale = useSharedValue(0.85);
+  const opacity = useSharedValue(0);
+  const textOpacity = useSharedValue(0);
 
-  const logoAnimatedStyle = useAnimatedStyle(() => ({
+  const logoStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
     opacity: opacity.value,
   }));
 
+  const textStyle = useAnimatedStyle(() => ({
+    opacity: textOpacity.value,
+  }));
+
   useEffect(() => {
-    // Pulse animation
-    scale.value = withRepeat(
-      withSequence(
-        withTiming(1.1, { duration: 1000 }),
-        withTiming(0.9, { duration: 1000 })
-      ),
-      -1, // infinite loop
-      true // reverse direction
-    );
+    // Fade in logo
+    opacity.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) });
+    scale.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.back(1.2)) });
 
-    opacity.value = withTiming(1, { duration: 800 });
+    // Slight delay before showing text
+    const textTimer = setTimeout(() => {
+      textOpacity.value = withTiming(1, { duration: 500 });
+    }, 400);
 
-    // Transition timer
-    const timer = setTimeout(() => {
+    // Navigate after splash
+    const navTimer = setTimeout(() => {
       if (isAuthenticated) {
         router.replace('/(tabs)');
       } else {
         router.replace('/(auth)/onboarding');
       }
-    }, 2800);
+    }, 2600);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(textTimer);
+      clearTimeout(navTimer);
+    };
   }, [isAuthenticated]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Animated.View style={[styles.logoWrapper, logoAnimatedStyle]}>
-        <View style={[styles.logoGlow, { shadowColor: colors.primary }]} />
-        <Text style={[styles.logoIcon, { color: colors.primaryDeep, backgroundColor: colors.primary }]}>
-          $
+      <Animated.View style={[styles.logoContainer, logoStyle]}>
+        {/* Green circle logo badge */}
+        <View style={[styles.logoBadge, { backgroundColor: colors.primary }]}>
+          <Text style={styles.logoSymbol}>$</Text>
+        </View>
+      </Animated.View>
+
+      <Animated.View style={[styles.textBlock, textStyle]}>
+        <Text style={[styles.brandTitle, { color: colors.textPrimary }]}>
+          Bill <Text style={{ color: colors.primary }}>Split</Text>
+        </Text>
+        <Text style={[styles.brandTagline, { color: colors.textSecondary }]}>
+          Split • Track • Settle
         </Text>
       </Animated.View>
-      <Text style={[styles.brandTitle, { color: colors.textPrimary }]}>
-        Bill<Text style={{ color: colors.primary }}>Split</Text>
-      </Text>
-      <Text style={[styles.brandSubtitle, { color: colors.textSecondary }]}>
-        Neo-banking meets social fintech
-      </Text>
+
+      {/* Bottom loading indicator */}
+      <View style={styles.dotRow}>
+        {[0, 1, 2].map((i) => (
+          <View
+            key={i}
+            style={[
+              styles.dot,
+              { backgroundColor: i === 1 ? colors.primary : colors.gray200 },
+            ]}
+          />
+        ))}
+      </View>
     </View>
   );
 }
@@ -74,43 +95,55 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  logoWrapper: {
+  logoContainer: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  logoBadge: {
+    width: 100,
+    height: 100,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    shadowColor: '#22C55E',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 12,
   },
-  logoGlow: {
-    position: 'absolute',
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 25,
-  },
-  logoIcon: {
-    fontSize: 42,
+  logoSymbol: {
+    fontSize: 48,
     fontFamily: 'SpaceGrotesk',
     fontWeight: '900',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    textAlign: 'center',
-    lineHeight: 80,
-    overflow: 'hidden',
+    color: '#FFFFFF',
+  },
+  textBlock: {
+    alignItems: 'center',
+    marginBottom: 60,
   },
   brandTitle: {
-    fontSize: 32,
+    fontSize: 36,
     fontFamily: 'SpaceGrotesk',
     fontWeight: '900',
     letterSpacing: -1,
+    marginBottom: 6,
   },
-  brandSubtitle: {
-    fontSize: 12,
+  brandTagline: {
+    fontSize: 13,
     fontFamily: 'Nunito',
     fontWeight: '600',
-    marginTop: 6,
-    letterSpacing: 0.5,
+    letterSpacing: 2,
     textTransform: 'uppercase',
+  },
+  dotRow: {
+    position: 'absolute',
+    bottom: 60,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });

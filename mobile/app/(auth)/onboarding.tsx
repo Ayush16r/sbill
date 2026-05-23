@@ -1,36 +1,49 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions, Pressable } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+  Pressable,
+  SafeAreaView,
+} from 'react-native';
 import { useRouter } from 'expo-router';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring, 
-  withTiming 
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
 } from 'react-native-reanimated';
 import { useTheme } from '../../hooks/useTheme';
 import { Button } from '../../components/ui/Button';
 
 interface Slide {
-  icon: string;
+  emoji: string;
   title: string;
   description: string;
+  bgColor: string;
 }
 
 const SLIDES: Slide[] = [
   {
-    icon: '🍕',
+    emoji: '🤝',
     title: 'Split Expenses,\nStay Friends',
-    description: 'Easily split bills and track shared expenses with friends without the awkward conversations.',
+    description:
+      'Easily split bills and track shared expenses with friends without the awkward conversations.',
+    bgColor: '#F0FDF4',
   },
   {
-    icon: '📈',
+    emoji: '📊',
     title: 'Track & Manage\nEvery Cent',
-    description: 'View category summaries, dynamic charts, and financial analytics all inside one secure app.',
+    description:
+      'View category summaries, analytics and spending insights all inside one secure app.',
+    bgColor: '#EFF6FF',
   },
   {
-    icon: '⚡',
+    emoji: '⚡',
     title: 'Settle Debts\nIn Seconds',
-    description: 'Calculate who owes who dynamically using advanced algorithms. Clear your tabs instantly.',
+    description:
+      'Calculate who owes who with smart algorithms. Clear your tabs instantly with one tap.',
+    bgColor: '#FFF7ED',
   },
 ];
 
@@ -40,8 +53,6 @@ export default function OnboardingScreen() {
   const { width } = useWindowDimensions();
 
   const [activeIndex, setActiveIndex] = useState(0);
-
-  // Reanimated slide transition offset
   const offsetX = useSharedValue(0);
 
   const animatedSlideStyle = useAnimatedStyle(() => ({
@@ -52,136 +63,144 @@ export default function OnboardingScreen() {
     if (activeIndex < SLIDES.length - 1) {
       const nextIdx = activeIndex + 1;
       setActiveIndex(nextIdx);
-      offsetX.value = withSpring(-nextIdx * width, { damping: 15 });
+      offsetX.value = withSpring(-nextIdx * width, { damping: 16, stiffness: 120 });
     } else {
       router.push('/(auth)/login');
     }
   };
 
-  const handleSkip = () => {
-    router.push('/(auth)/login');
-  };
+  const handleSkip = () => router.push('/(auth)/login');
+
+  const slide = SLIDES[activeIndex];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Top Header Skip Button */}
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Skip */}
+      <View style={styles.topBar}>
+        <View />
         {activeIndex < SLIDES.length - 1 && (
-          <Pressable onPress={handleSkip}>
+          <Pressable onPress={handleSkip} style={styles.skipBtn}>
             <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip</Text>
           </Pressable>
         )}
       </View>
 
-      {/* Slide Carousel Track */}
-      <Animated.View style={[styles.track, { width: width * SLIDES.length }, animatedSlideStyle]}>
-        {SLIDES.map((slide, i) => (
-          <View key={i} style={[styles.slide, { width }]}>
-            <View style={[styles.illustrationWrapper, { backgroundColor: colors.surfaceElevated }]}>
-              <Text style={styles.illustrationEmoji}>{slide.icon}</Text>
+      {/* Slide area */}
+      <View style={styles.slideArea}>
+        <Animated.View
+          style={[{ flexDirection: 'row', width: width * SLIDES.length }, animatedSlideStyle]}
+        >
+          {SLIDES.map((s, i) => (
+            <View key={i} style={[styles.slide, { width }]}>
+              {/* Illustration circle */}
+              <View style={[styles.illustrationCircle, { backgroundColor: s.bgColor }]}>
+                <Text style={styles.illustrationEmoji}>{s.emoji}</Text>
+              </View>
+              <Text style={[styles.slideTitle, { color: colors.textPrimary }]}>{s.title}</Text>
+              <Text style={[styles.slideDesc, { color: colors.textSecondary }]}>{s.description}</Text>
             </View>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>{slide.title}</Text>
-            <Text style={[styles.description, { color: colors.textSecondary }]}>{slide.description}</Text>
-          </View>
-        ))}
-      </Animated.View>
+          ))}
+        </Animated.View>
+      </View>
 
-      {/* Pagination & CTA Footer */}
+      {/* Footer */}
       <View style={styles.footer}>
-        {/* Progress dots */}
-        <View style={styles.indicatorContainer}>
+        {/* Dots */}
+        <View style={styles.dotsRow}>
           {SLIDES.map((_, i) => (
             <View
               key={i}
               style={[
-                styles.indicatorDot,
+                styles.dot,
                 {
-                  backgroundColor: i === activeIndex ? colors.primary : colors.border,
-                  width: i === activeIndex ? 24 : 8,
+                  backgroundColor: i === activeIndex ? colors.primary : colors.gray200,
+                  width: i === activeIndex ? 28 : 8,
                 },
               ]}
             />
           ))}
         </View>
 
-        {/* Navigation Action CTA */}
         <Button
           title={activeIndex === SLIDES.length - 1 ? 'Get Started' : 'Next'}
           onPress={handleNext}
+          style={styles.nextBtn}
         />
+
+        {/* Login link */}
+        <Pressable onPress={handleSkip} style={styles.loginRow}>
+          <Text style={[styles.loginHintText, { color: colors.textSecondary }]}>
+            Already have an account?{' '}
+          </Text>
+          <Text style={[styles.loginLink, { color: colors.primary }]}>Login</Text>
+        </Pressable>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    height: 60,
-    justifyContent: 'center',
-    alignItems: 'flex-end',
-    paddingHorizontal: 24,
-    marginTop: 40,
-  },
-  skipText: {
-    fontSize: 14,
-    fontFamily: 'Nunito',
-    fontWeight: '700',
-  },
-  track: {
-    flex: 1,
+  container: { flex: 1 },
+  topBar: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    height: 52,
   },
+  skipBtn: { padding: 8 },
+  skipText: { fontSize: 14, fontFamily: 'Nunito', fontWeight: '700' },
+  slideArea: { flex: 1, overflow: 'hidden' },
   slide: {
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 32,
   },
-  illustrationWrapper: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+  illustrationCircle: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 44,
   },
-  illustrationEmoji: {
-    fontSize: 70,
-  },
-  title: {
-    fontSize: 28,
+  illustrationEmoji: { fontSize: 90 },
+  slideTitle: {
+    fontSize: 30,
     fontFamily: 'SpaceGrotesk',
     fontWeight: '900',
     textAlign: 'center',
-    lineHeight: 34,
+    lineHeight: 38,
     letterSpacing: -0.5,
     marginBottom: 16,
   },
-  description: {
-    fontSize: 14,
+  slideDesc: {
+    fontSize: 15,
     fontFamily: 'Nunito',
     fontWeight: '600',
     textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: 12,
+    lineHeight: 24,
+    paddingHorizontal: 8,
   },
   footer: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
-    justifyContent: 'center',
+    paddingBottom: 36,
     alignItems: 'center',
   },
-  indicatorContainer: {
+  dotsRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 28,
+    gap: 6,
   },
-  indicatorDot: {
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 4,
+  dot: { height: 8, borderRadius: 4 },
+  nextBtn: { width: '100%', marginBottom: 16 },
+  loginRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
   },
+  loginHintText: { fontSize: 14, fontFamily: 'Nunito', fontWeight: '600' },
+  loginLink: { fontSize: 14, fontFamily: 'Nunito', fontWeight: '800' },
 });
