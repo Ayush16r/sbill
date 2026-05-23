@@ -11,8 +11,9 @@ export async function sendPayment(req: AuthRequest, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    if (!receiverId || !amount) {
-      return res.status(400).json({ error: 'Receiver ID and amount are required.' });
+    const parsedAmount = parseFloat(amount);
+    if (!receiverId || isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ error: 'Receiver ID and a valid positive amount are required.' });
     }
 
     // Execute payment and adjust group balances inside a transaction
@@ -22,7 +23,7 @@ export async function sendPayment(req: AuthRequest, res: Response) {
         data: {
           senderId,
           receiverId,
-          amount,
+          amount: parsedAmount,
           currency: currency || 'INR',
           note: note || null,
           groupId: groupId || null,
@@ -45,7 +46,7 @@ export async function sendPayment(req: AuthRequest, res: Response) {
           },
           data: {
             balance: {
-              increment: amount,
+              increment: parsedAmount,
             },
           },
         });
@@ -60,7 +61,7 @@ export async function sendPayment(req: AuthRequest, res: Response) {
           },
           data: {
             balance: {
-              decrement: amount,
+              decrement: parsedAmount,
             },
           },
         });

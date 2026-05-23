@@ -58,10 +58,11 @@ export default function SplashScreenView() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Animated.View style={[styles.logoContainer, logoStyle]}>
-        {/* Green circle logo badge */}
-        <View style={[styles.logoBadge, { backgroundColor: colors.primary }]}>
-          <Text style={styles.logoSymbol}>$</Text>
-        </View>
+        <Image
+          source={require('../../assets/icon.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
       </Animated.View>
 
       <Animated.View style={[styles.textBlock, textStyle]}>
@@ -99,23 +100,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     alignItems: 'center',
   },
-  logoBadge: {
-    width: 100,
-    height: 100,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#22C55E',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    elevation: 12,
-  },
-  logoSymbol: {
-    fontSize: 48,
-    fontFamily: 'SpaceGrotesk',
-    fontWeight: '900',
-    color: '#FFFFFF',
+  logoImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
   },
   textBlock: {
     alignItems: 'center',

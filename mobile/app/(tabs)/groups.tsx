@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,7 +11,7 @@ import {
   SafeAreaView,
   Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Plus, MoreVertical, ChevronRight } from 'lucide-react-native';
 import { useGroupStore } from '../../store/groupStore';
 import { useUIStore } from '../../store/uiStore';
@@ -67,9 +67,11 @@ export default function GroupsScreen() {
     setRefreshing(false);
   };
 
-  useEffect(() => {
-    fetchGroups();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchGroups();
+    }, [])
+  );
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {

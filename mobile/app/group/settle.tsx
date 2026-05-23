@@ -148,7 +148,7 @@ export default function SettleGroupScreen() {
               return (
                 <Pressable
                   key={group.id}
-                  onPress={() => setSelectedGroupId(group.id)}
+                  onPress={() => setSelectedGroupId(selectedGroupId === group.id ? null : group.id)}
                 >
                   <Card variant="glass" padding={16} style={styles.groupCard}>
                     <View style={styles.groupMetaRow}>

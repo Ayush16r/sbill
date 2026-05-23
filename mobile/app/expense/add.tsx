@@ -159,7 +159,7 @@ export default function AddExpenseScreen() {
                   return (
                     <Pressable
                       key={group.id}
-                      onPress={() => setSelectedGroupId(group.id)}
+                      onPress={() => setSelectedGroupId(selectedGroupId === group.id ? null : group.id)}
                       style={[
                         styles.catChip,
                         {

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable, RefreshControl, Share } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { ArrowLeft, Plus, Send, Share2, Clipboard, ShieldCheck } from 'lucide-react-native';
 import { useAuthStore } from '../../store/authStore';
 import { useGroupStore, GroupInfo } from '../../store/groupStore';
@@ -38,12 +38,14 @@ export default function GroupDetailScreen() {
     setRefreshing(false);
   };
 
-  useEffect(() => {
-    if (id) {
-      fetchGroupDetails();
-    }
-    return () => setActiveGroup(null);
-  }, [id]);
+  useFocusEffect(
+    useCallback(() => {
+      if (id) {
+        fetchGroupDetails();
+      }
+      return () => setActiveGroup(null);
+    }, [id])
+  );
 
   const handleShareInvite = async () => {
     if (!activeGroup) return;

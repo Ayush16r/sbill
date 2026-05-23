@@ -33,9 +33,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "BillSplit uses your camera to scan receipts.",
-          "microphonePermission": false,
-          "recordAudioAndroid": false
+          "cameraPermission": "BillSplit uses your camera to scan receipts."
         }
       ]
     ],

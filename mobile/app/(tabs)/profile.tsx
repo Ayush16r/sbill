@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   StyleSheet,
   Text,
@@ -51,10 +52,31 @@ export default function ProfileScreen() {
   const updateCurrency = useAuthStore((state) => state.updateCurrency);
 
   const groups = useGroupStore((state) => state.groups);
+  const setGroups = useGroupStore((state) => state.setGroups);
+  const updateUserBalance = useAuthStore((state) => state.updateUserBalance);
 
   const isDarkModeStore = useUIStore((state) => state.isDark);
   const setTheme = useUIStore((state) => state.setTheme);
   const showToast = useUIStore((state) => state.showToast);
+
+  const fetchProfileStats = async () => {
+    try {
+      const [summaryRes, groupsRes] = await Promise.all([
+        api.get('/analytics/summary'),
+        api.get('/groups'),
+      ]);
+      setGroups(groupsRes.data);
+      updateUserBalance(summaryRes.data.totalBalance);
+    } catch (err) {
+      console.error('Profile stats fetch error:', err);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfileStats();
+    }, [])
+  );
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);

@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   StyleSheet,
   Text,
@@ -97,9 +98,11 @@ export default function AnalyticsScreen() {
     setRefreshing(false);
   };
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchAnalytics();
+    }, [])
+  );
 
   if (loading) {
     return (

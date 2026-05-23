@@ -13,8 +13,9 @@ async function sendPayment(req, res) {
         if (!senderId) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
-        if (!receiverId || !amount) {
-            return res.status(400).json({ error: 'Receiver ID and amount are required.' });
+        const parsedAmount = parseFloat(amount);
+        if (!receiverId || isNaN(parsedAmount) || parsedAmount <= 0) {
+            return res.status(400).json({ error: 'Receiver ID and a valid positive amount are required.' });
         }
         // Execute payment and adjust group balances inside a transaction
         const payment = await db_1.prisma.$transaction(async (tx) => {
@@ -23,7 +24,7 @@ async function sendPayment(req, res) {
                 data: {
                     senderId,
                     receiverId,
-                    amount,
+                    amount: parsedAmount,
                     currency: currency || 'INR',
                     note: note || null,
                     groupId: groupId || null,
@@ -45,7 +46,7 @@ async function sendPayment(req, res) {
                     },
                     data: {
                         balance: {
-                            increment: amount,
+                            increment: parsedAmount,
                         },
                     },
                 });
@@ -59,7 +60,7 @@ async function sendPayment(req, res) {
                     },
                     data: {
                         balance: {
-                            decrement: amount,
+                            decrement: parsedAmount,
                         },
                     },
                 });
