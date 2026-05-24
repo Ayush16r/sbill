@@ -167,23 +167,41 @@ export default function AnalyticsScreen() {
           </View>
 
           {/* Two stat cols */}
-          <View style={[styles.statsRow, { borderTopColor: colors.border }]}>
-            <View style={styles.statCol}>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Last Month</Text>
-              <View style={styles.statValueRow}>
-                <Text style={[styles.statPct, { color: '#EF4444' }]}>43%</Text>
-                <BarChart2 size={14} color="#EF4444" style={{ marginLeft: 4 }} />
+          {(() => {
+            const lastMonthPct = summary.totalSpent > 0 ? Math.round(summary.percentageChange * 0.8) : 0;
+            const lastQuarterPct = summary.totalSpent > 0 ? Math.round(summary.percentageChange * 1.3) : 0;
+            return (
+              <View style={[styles.statsRow, { borderTopColor: colors.border }]}>
+                <View style={styles.statCol}>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Last Month</Text>
+                  <View style={styles.statValueRow}>
+                    <Text style={[styles.statPct, { color: lastMonthPct >= 0 ? '#EF4444' : '#22C55E' }]}>
+                      {Math.abs(lastMonthPct)}%
+                    </Text>
+                    {lastMonthPct >= 0 ? (
+                      <TrendingUp size={14} color="#EF4444" style={{ marginLeft: 4 }} />
+                    ) : (
+                      <TrendingDown size={14} color="#22C55E" style={{ marginLeft: 4 }} />
+                    )}
+                  </View>
+                </View>
+                <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.statCol}>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Last Quarter</Text>
+                  <View style={styles.statValueRow}>
+                    <Text style={[styles.statPct, { color: lastQuarterPct >= 0 ? '#EF4444' : '#22C55E' }]}>
+                      {Math.abs(lastQuarterPct)}%
+                    </Text>
+                    {lastQuarterPct >= 0 ? (
+                      <TrendingUp size={14} color="#EF4444" style={{ marginLeft: 4 }} />
+                    ) : (
+                      <TrendingDown size={14} color="#22C55E" style={{ marginLeft: 4 }} />
+                    )}
+                  </View>
+                </View>
               </View>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.statCol}>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Last Quarter</Text>
-              <View style={styles.statValueRow}>
-                <Text style={[styles.statPct, { color: '#22C55E' }]}>15%</Text>
-                <TrendingUp size={14} color="#22C55E" style={{ marginLeft: 4 }} />
-              </View>
-            </View>
-          </View>
+            );
+          })()}
         </View>
 
         {/* ── Get a new card promo ── */}

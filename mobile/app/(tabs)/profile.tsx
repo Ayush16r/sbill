@@ -26,6 +26,7 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { useUIStore } from '../../store/uiStore';
 import { useGroupStore } from '../../store/groupStore';
+import { useExpenseStore } from '../../store/expenseStore';
 import { useTheme } from '../../hooks/useTheme';
 import { useHaptics } from '../../hooks/useHaptics';
 import { Button } from '../../components/ui/Button';
@@ -88,8 +89,13 @@ export default function ProfileScreen() {
     if (hapticsEnabled) selectionClick();
   };
 
+  const clearExpenses = useExpenseStore((state) => state.clearExpenses);
+  const clearGroups = useGroupStore((state) => state.clearGroups);
+
   const handleLogout = () => {
     if (hapticsEnabled) lightImpact();
+    clearExpenses();
+    clearGroups();
     logout();
     showToast('Signed out successfully. See you soon!', 'info');
     router.replace('/(auth)/login');

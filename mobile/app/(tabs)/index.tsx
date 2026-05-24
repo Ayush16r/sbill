@@ -7,23 +7,16 @@ import {
   Pressable,
   RefreshControl,
   Dimensions,
-  TouchableOpacity,
+  Clipboard,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import {
   Plus,
   Camera,
-  Send,
-  CreditCard,
   Bell,
   User,
   Eye,
   EyeOff,
-  ChevronRight,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Copy,
-  Share2,
 } from 'lucide-react-native';
 import { useAuthStore } from '../../store/authStore';
 import { useExpenseStore } from '../../store/expenseStore';
@@ -52,6 +45,7 @@ export default function HomeDashboard() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [balanceVisible, setBalanceVisible] = useState(true);
+  const [cardIndex, setCardIndex] = useState(0); // 0 = Combined, 1 = Owed to Me, 2 = Owed to Others
   const [analytics, setAnalytics] = useState({
     totalSpent: 0.0,
     totalBalance: 0.0,
@@ -158,11 +152,20 @@ export default function HomeDashboard() {
             {/* Balance */}
             <View style={styles.balanceRow}>
               <View>
-                <Text style={styles.balanceLabel}>Total Balance</Text>
+                <Text style={styles.balanceLabel}>
+                  {cardIndex === 0 ? 'Total Balance' : cardIndex === 1 ? 'Owed to Me' : 'Owed to Others (Total Owed)'}
+                </Text>
                 <View style={styles.balanceAmtRow}>
                   <Text style={styles.balanceAmount}>
                     {balanceVisible
-                      ? formatCurrency(analytics.totalBalance, currency)
+                      ? formatCurrency(
+                          cardIndex === 0
+                            ? analytics.totalBalance
+                            : cardIndex === 1
+                            ? analytics.owedToMe
+                            : analytics.owedToOthers,
+                          currency
+                        )
                       : '••••••'}
                   </Text>
                   <Pressable
@@ -179,11 +182,19 @@ export default function HomeDashboard() {
 
             {/* Card navigation row */}
             <View style={styles.cardNavRow}>
-              <Pressable style={styles.cardNavArrow}>
+              <Pressable
+                onPress={() => setCardIndex((prev) => (prev === 0 ? 2 : prev - 1))}
+                style={styles.cardNavArrow}
+              >
                 <Text style={styles.cardNavArrowText}>‹</Text>
               </Pressable>
-              <Text style={styles.cardNavLabel}>All Cards</Text>
-              <Pressable style={styles.cardNavArrow}>
+              <Text style={styles.cardNavLabel}>
+                {cardIndex === 0 ? 'Combined View' : cardIndex === 1 ? 'Assets View' : 'Debts View'}
+              </Text>
+              <Pressable
+                onPress={() => setCardIndex((prev) => (prev === 2 ? 0 : prev + 1))}
+                style={styles.cardNavArrow}
+              >
                 <Text style={styles.cardNavArrowText}>›</Text>
               </Pressable>
             </View>
@@ -236,7 +247,11 @@ export default function HomeDashboard() {
           <View style={styles.quickActionsRow}>
             {[
               { icon: '🧾', label: 'Receipt', action: () => router.push('/expense/scan' as any) },
-              { icon: '📋', label: 'Copy', action: () => showToast('Link copied!', 'success') },
+              { icon: '📋', label: 'Copy', action: () => {
+                  Clipboard.setString('https://billsplit.example.com/download');
+                  showToast('Share link copied to clipboard! 📋', 'success');
+                } 
+              },
               { icon: '🔗', label: 'Share', action: () => router.push('/group/invite' as any) },
               { icon: '➕', label: 'Add', action: () => router.push('/expense/add') },
             ].map((item, i) => (
@@ -289,7 +304,7 @@ export default function HomeDashboard() {
         <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.sectionHeaderRow}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Recent Transactions</Text>
-            <Pressable>
+            <Pressable onPress={() => router.push('/(tabs)/analytics')}>
               <Text style={[styles.seeAllText, { color: colors.primary }]}>See More</Text>
             </Pressable>
           </View>
@@ -305,11 +320,8 @@ export default function HomeDashboard() {
             expenses.slice(0, 5).map((expense) => {
               const mySplit = expense.splits?.find((s: any) => s.userId === user?.id);
               const isOwed = expense.paidById === user?.id;
-              const netAmount = mySplit
-                ? isOwed
-                  ? expense.amount - mySplit.amount
-                  : -mySplit.amount
-                : 0;
+              const myShare = mySplit ? mySplit.amount : 0;
+              const netAmount = isOwed ? (expense.amount - myShare) : -myShare;
 
               return (
                 <View key={expense.id} style={[styles.txRow, { borderBottomColor: colors.border }]}>
@@ -333,7 +345,10 @@ export default function HomeDashboard() {
           )}
 
           {/* Latest news banner */}
-          <Pressable style={[styles.newsBanner, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
+          <Pressable 
+            onPress={() => showToast('Streak Rewards program is active! Keep adding bills to earn points.', 'success')}
+            style={[styles.newsBanner, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
+          >
             <Text style={styles.newsEmoji}>🏆</Text>
             <View style={styles.newsTextCol}>
               <Text style={[styles.newsTitle, { color: '#92400E' }]}>Start your streak strong –</Text>

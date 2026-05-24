@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View, Platform, Pressable } from 'react-native';
+import { StyleSheet, Text, View, Platform, Pressable, BackHandler, Share } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { 
   useSharedValue, 
@@ -87,7 +87,20 @@ export default function PaymentSuccessScreen() {
       1000,
       withTiming(1, { duration: 400 })
     );
-  }, []);
+
+    // 6. Handle hardware back button on Android to prevent navigating back to success
+    const backAction = () => {
+      handleReturn();
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [groupId]);
 
   const animatedCheckStyle = useAnimatedStyle(() => ({
     transform: [{ scale: checkScale.value }],
@@ -116,6 +129,17 @@ export default function PaymentSuccessScreen() {
       router.replace(`/group/${groupId}`);
     } else {
       router.replace('/(tabs)');
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      const message = `Payment of ${formatCurrency(parseFloat(amount || '0'))} to ${toName} was successful in group "${groupName}". Reference ID: ${mockTxId}. Saved via BillSplit.`;
+      await Share.share({
+        message,
+      });
+    } catch (error: any) {
+      console.error('Share error:', error);
     }
   };
 
@@ -200,6 +224,7 @@ export default function PaymentSuccessScreen() {
         />
         
         <Pressable 
+          onPress={handleShare}
           style={styles.shareBtn}
           accessibilityRole="button"
           accessibilityLabel="Share receipt"

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import { StyleSheet, Text, ActivityIndicator, Pressable, PressableProps } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useTheme } from '../../hooks/useTheme';
@@ -32,6 +32,7 @@ export const Button: React.FC<ButtonProps> = ({
 }) => {
   const { colors } = useTheme();
   const { lightImpact } = useHaptics();
+  const lastPressTime = useRef(0);
   
   // Touch elastic spring scale
   const scale = useSharedValue(1);
@@ -50,6 +51,14 @@ export const Button: React.FC<ButtonProps> = ({
   const handlePressOut = () => {
     scale.value = withSpring(1, { damping: 10, stiffness: 250 });
   };
+
+  // Debounced press to prevent double-tap submissions
+  const debouncedPress = useCallback((e: any) => {
+    const now = Date.now();
+    if (now - lastPressTime.current < 400) return;
+    lastPressTime.current = now;
+    onPress?.(e);
+  }, [onPress]);
 
   const getVariantStyles = () => {
     switch (variant) {
@@ -116,7 +125,7 @@ export const Button: React.FC<ButtonProps> = ({
       disabled={disabled || loading}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
-      onPress={onPress}
+      onPress={debouncedPress}
       accessibilityRole="button"
       style={[
         styles.buttonContainer,

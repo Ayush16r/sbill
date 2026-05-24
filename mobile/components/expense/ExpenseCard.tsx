@@ -73,7 +73,7 @@ export const ExpenseCard: React.FC<ExpenseCardProps> = ({
   category,
   date,
   userOwes,
-  currencyCode = 'USD',
+  currencyCode = 'INR',
   onPress,
   onLongPress,
   testID,

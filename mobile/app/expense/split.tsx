@@ -10,13 +10,12 @@ import {
   TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Users, Percent, DollarSign, Ratio } from 'lucide-react-native';
+import { ArrowLeft, Users, Percent, IndianRupee, Ratio } from 'lucide-react-native';
 import { useGroupStore } from '../../store/groupStore';
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../hooks/useTheme';
 import { Card } from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { formatCurrency } from '../../utils/currency';
 import api from '../../services/api';
@@ -29,7 +28,6 @@ export default function SplitCalculatorScreen() {
   const { colors } = useTheme();
 
   const user = useAuthStore((state) => state.user);
-  // BUG FIX: use `groups` (not activeGroup) to look up members by groupId param
   const groups = useGroupStore((state) => state.groups);
   const showToast = useUIStore((state) => state.showToast);
 
@@ -38,24 +36,28 @@ export default function SplitCalculatorScreen() {
   const category = params.category as string;
   const groupId = params.groupId as string;
   const participantIds: string[] = JSON.parse(params.participants as string || '[]');
+  const participantProfiles: Array<{ id: string; name: string }> = JSON.parse(
+    params.participantProfiles as string || '[]'
+  );
 
-  const currency = user?.currency || 'INR';
-  const currencySymbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹';
+  const currencySymbol = '₹'; // Force ₹ rupee as standard
 
-  // BUG FIX: look up group from groups array (not activeGroup)
   const currentGroup = groups.find((g) => g.id === groupId) || null;
 
   const getMemberName = (userId: string): string => {
-    if (!currentGroup) return userId === user?.id ? 'You' : 'Member';
+    if (userId === user?.id) return 'You';
+    const profile = participantProfiles.find(p => p.id === userId);
+    if (profile) return profile.name;
+    if (!currentGroup) return 'Member';
     const member = currentGroup.members.find((m) => m.userId === userId);
-    return member?.name || (userId === user?.id ? 'You' : 'Member');
+    return member?.name || 'Member';
   };
 
   const [splitType, setSplitType] = useState<SplitType>('EQUAL');
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
-  // BUG FIX: Initialize with properly rounded values to avoid percentage sum ≠ 100 for odd counts
+  // Initialize and distribute default inputs evenly based on splitType
   useEffect(() => {
     const n = participantIds.length;
     if (n === 0) return;
@@ -84,13 +86,13 @@ export default function SplitCalculatorScreen() {
     }
 
     setInputs(defaultInputs);
-  }, [splitType]);
+  }, [splitType, participantIds.join(','), total]);
 
   const handleInputChange = (userId: string, val: string) => {
     setInputs({ ...inputs, [userId]: val });
   };
 
-  // BUG FIX: Improved validation with better tolerance and error messages
+  // Real-time validation
   const validate = (): boolean => {
     if (splitType === 'EQUAL') return true;
 
@@ -99,9 +101,14 @@ export default function SplitCalculatorScreen() {
       num: parseFloat(inputs[id] || '0') || 0,
     }));
 
+    if (values.some((v) => v.num < 0)) {
+      showToast('Split values cannot be negative.', 'error');
+      return false;
+    }
+
     if (splitType === 'PERCENTAGE') {
       const sum = values.reduce((s, v) => s + v.num, 0);
-      // Allow 1% tolerance for rounding
+      // Allow 1% tolerance for manual entry, which we will normalize before submission
       if (Math.abs(sum - 100) > 1) {
         showToast(`Percentages must sum to 100% (currently ${sum.toFixed(1)}%)`, 'error');
         return false;
@@ -110,10 +117,10 @@ export default function SplitCalculatorScreen() {
 
     if (splitType === 'CUSTOM') {
       const sum = values.reduce((s, v) => s + v.num, 0);
-      // Allow 2 rupee/cent tolerance
+      // Allow 2 rupee tolerance for manual entry, which we will normalize before submission
       if (Math.abs(sum - total) > 2) {
         showToast(
-          `Amounts must sum to ${formatCurrency(total, currency)} (currently ${formatCurrency(sum, currency)})`,
+          `Amounts must sum to ${formatCurrency(total)} (currently ${formatCurrency(sum)})`,
           'error'
         );
         return false;
@@ -132,6 +139,7 @@ export default function SplitCalculatorScreen() {
   };
 
   const handleConfirmSplit = async () => {
+    if (loading) return;
     if (!validate()) return;
 
     setLoading(true);
@@ -141,11 +149,28 @@ export default function SplitCalculatorScreen() {
         customValues[id] = parseFloat(inputs[id] || '0') || 0;
       });
 
+      // Normalization to ensure no floating point mismatch errors or database rejections
+      if (splitType === 'PERCENTAGE') {
+        const sum = Object.values(customValues).reduce((s, v) => s + v, 0);
+        if (sum > 0) {
+          const diff = 100 - sum;
+          // Add the remainder difference to the first participant to make it exactly 100.00
+          const firstId = participantIds[0];
+          customValues[firstId] = Math.round((customValues[firstId] + diff) * 100) / 100;
+        }
+      } else if (splitType === 'CUSTOM') {
+        const sum = Object.values(customValues).reduce((s, v) => s + v, 0);
+        const diff = total - sum;
+        // Add the remainder difference to the first participant to make it exactly total
+        const firstId = participantIds[0];
+        customValues[firstId] = Math.round((customValues[firstId] + diff) * 100) / 100;
+      }
+
       const body = {
         title,
         amount: total,
         category,
-        groupId: groupId || undefined,
+        groupId: groupId || null,
         splitType,
         participants: participantIds,
         customValues: splitType !== 'EQUAL' ? customValues : undefined,
@@ -166,22 +191,22 @@ export default function SplitCalculatorScreen() {
     }
   };
 
-  // BUG FIX: compute live share correctly for each split type
+  // Compute live share correctly for each split type to show dynamic feedback
   const getComputedShare = (userId: string): string => {
     const value = parseFloat(inputs[userId] || '0') || 0;
 
     if (splitType === 'EQUAL') {
-      return formatCurrency(total / participantIds.length, currency);
+      return formatCurrency(total / participantIds.length);
     } else if (splitType === 'PERCENTAGE') {
-      return formatCurrency(total * (value / 100), currency);
+      return formatCurrency(total * (value / 100));
     } else if (splitType === 'CUSTOM') {
-      return `${((value / total) * 100).toFixed(1)}%`;
+      return `${total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'}%`;
     } else if (splitType === 'SHARES') {
       const totalShares = participantIds.reduce(
         (s, id) => s + (parseFloat(inputs[id] || '0') || 0),
         0
       );
-      return totalShares > 0 ? formatCurrency(total * (value / totalShares), currency) : formatCurrency(0, currency);
+      return totalShares > 0 ? formatCurrency(total * (value / totalShares)) : formatCurrency(0);
     }
     return '';
   };
@@ -207,7 +232,7 @@ export default function SplitCalculatorScreen() {
           {([
             { id: 'EQUAL', label: 'Equally', icon: Users },
             { id: 'PERCENTAGE', label: 'Percent', icon: Percent },
-            { id: 'CUSTOM', label: 'Exact', icon: DollarSign },
+            { id: 'CUSTOM', label: 'Exact', icon: IndianRupee },
             { id: 'SHARES', label: 'Shares', icon: Ratio },
           ] as const).map(({ id, label, icon: Icon }) => {
             const active = splitType === id;
@@ -234,13 +259,37 @@ export default function SplitCalculatorScreen() {
         <View style={[styles.summaryCard, { backgroundColor: colors.gray100 }]}>
           <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total Amount</Text>
           <Text style={[styles.summaryAmount, { color: colors.textPrimary }]}>
-            {formatCurrency(total, currency)}
+            {formatCurrency(total)}
           </Text>
           <Text style={[styles.summaryMeta, { color: colors.textSecondary }]}>
             Split between {participantIds.length} {participantIds.length === 1 ? 'person' : 'people'}
             {splitType === 'EQUAL' && ` · ${currencySymbol}${(total / participantIds.length).toFixed(2)} each`}
           </Text>
         </View>
+
+        {/* Live sum indicator for feedback */}
+        {splitType !== 'EQUAL' && (
+          <View style={{ marginHorizontal: 20, marginBottom: 12 }}>
+            {splitType === 'PERCENTAGE' && (() => {
+              const sum = participantIds.reduce((s, id) => s + (parseFloat(inputs[id] || '0') || 0), 0);
+              const diff = 100 - sum;
+              return (
+                <Text style={{ fontFamily: 'SpaceGrotesk', fontSize: 13, fontWeight: '700', color: Math.abs(diff) <= 1 ? colors.primary : colors.danger }}>
+                  Sum: {sum.toFixed(1)}% ({diff === 0 ? 'Balanced' : `${diff > 0 ? `${diff.toFixed(1)}% remaining` : `${Math.abs(diff).toFixed(1)}% over`}`})
+                </Text>
+              );
+            })()}
+            {splitType === 'CUSTOM' && (() => {
+              const sum = participantIds.reduce((s, id) => s + (parseFloat(inputs[id] || '0') || 0), 0);
+              const diff = total - sum;
+              return (
+                <Text style={{ fontFamily: 'SpaceGrotesk', fontSize: 13, fontWeight: '700', color: Math.abs(diff) <= 2 ? colors.primary : colors.danger }}>
+                  Sum: {formatCurrency(sum)} ({diff === 0 ? 'Balanced' : `${diff > 0 ? `${formatCurrency(diff)} remaining` : `${formatCurrency(Math.abs(diff))} over`}`})
+                </Text>
+              );
+            })()}
+          </View>
+        )}
 
         {/* Member rows */}
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Adjust Amounts</Text>

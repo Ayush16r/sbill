@@ -5,13 +5,28 @@ import {
   View,
   Pressable,
   ActivityIndicator,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TextInput,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, RotateCcw, Zap, ZapOff, Image as ImageIcon } from 'lucide-react-native';
+import { ArrowLeft, Trash2, Zap, ZapOff, Image as ImageIcon, Plus } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { useUIStore } from '../../store/uiStore';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { formatCurrency } from '../../utils/currency';
+
+interface ReceiptItem {
+  name: string;
+  qty: number;
+  price: number;
+}
 
 export default function ScanReceiptScreen() {
   const router = useRouter();
@@ -21,7 +36,11 @@ export default function ScanReceiptScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [flash, setFlash] = useState<'off' | 'on'>('off');
   const [scanning, setScanning] = useState(false);
-  const [facing, setFacing] = useState<'back' | 'front'>('back');
+
+  // Receipt form states after photo selection
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [items, setItems] = useState<ReceiptItem[]>([{ name: 'Pizza', qty: 1, price: 599 }]);
+  const [tax, setTax] = useState('45');
 
   const cameraRef = useRef<CameraView>(null);
 
@@ -30,20 +49,15 @@ export default function ScanReceiptScreen() {
     setScanning(true);
 
     try {
-      // Capture image using expo-camera API
-      await cameraRef.current.takePictureAsync({ quality: 0.7 });
-
-      // Simulate OCR processing
-      await new Promise((resolve) => setTimeout(resolve, 1800));
-
-      showToast('Receipt scanned! Fill in the details below.', 'success');
-
-      router.replace({
-        pathname: '/expense/add',
-        params: { scannedTitle: 'Scanned Receipt' },
-      });
+      const picture = await cameraRef.current.takePictureAsync({ quality: 0.7 });
+      
+      // Simulate receipt scanning analysis delay
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      
+      setPhotoUri(picture?.uri || 'placeholder');
+      showToast('Image captured! Let us itemize the receipt.', 'success');
     } catch (err) {
-      showToast('Failed to capture. Try again.', 'error');
+      showToast('Failed to capture receipt. Try again.', 'error');
     } finally {
       setScanning(false);
     }
@@ -65,15 +79,11 @@ export default function ScanReceiptScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         setScanning(true);
-        // Simulate OCR processing
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        // Simulate receipt scanning analysis delay
+        await new Promise((resolve) => setTimeout(resolve, 1200));
 
-        showToast('Receipt image loaded! Fill in details.', 'success');
-
-        router.replace({
-          pathname: '/expense/add',
-          params: { scannedTitle: 'Scanned Receipt' },
-        });
+        setPhotoUri(result.assets[0].uri);
+        showToast('Receipt loaded! Let us itemize.', 'success');
       }
     } catch (err) {
       showToast('Failed to select image.', 'error');
@@ -82,10 +92,53 @@ export default function ScanReceiptScreen() {
     }
   };
 
+  const handleAddItem = () => {
+    setItems([...items, { name: `Item ${items.length + 1}`, qty: 1, price: 0 }]);
+  };
+
+  const handleUpdateItem = (index: number, key: keyof ReceiptItem, val: string) => {
+    const updated = [...items];
+    if (key === 'qty') {
+      updated[index].qty = parseInt(val) || 0;
+    } else if (key === 'price') {
+      updated[index].price = parseFloat(val) || 0;
+    } else {
+      updated[index].name = val;
+    }
+    setItems(updated);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    if (items.length > 1) {
+      setItems(items.filter((_, i) => i !== index));
+    } else {
+      showToast('Need at least one item on the receipt.', 'error');
+    }
+  };
+
+  const subtotal = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
+  const parsedTax = parseFloat(tax) || 0;
+  const grandTotal = subtotal + parsedTax;
+
+  const handleSaveReceipt = () => {
+    if (grandTotal <= 0) {
+      showToast('Receipt total must be greater than ₹0.', 'error');
+      return;
+    }
+    const desc = items.length === 1 ? items[0].name : `${items[0].name} + ${items.length - 1} items`;
+    router.replace({
+      pathname: '/expense/add',
+      params: {
+        scannedTitle: desc,
+        scannedAmount: grandTotal.toFixed(2),
+      },
+    });
+  };
+
   if (!permission) {
     return (
       <View style={[styles.center, { backgroundColor: '#000' }]}>
-        <ActivityIndicator color="#22C55E" size="large" />
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
@@ -108,12 +161,120 @@ export default function ScanReceiptScreen() {
     );
   }
 
+  // Render receipt itemisation form if photo has been taken
+  if (photoUri) {
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
+        <View style={[styles.formHeader, { borderBottomColor: colors.border }]}>
+          <Pressable onPress={() => setPhotoUri(null)} style={styles.backBtn}>
+            <ArrowLeft size={22} color={colors.textPrimary} />
+          </Pressable>
+          <Text style={[styles.formHeaderTitle, { color: colors.textPrimary }]}>Receipt Items</Text>
+          <View style={{ width: 28 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={styles.formScrollContent} keyboardShouldPersistTaps="handled">
+          <Card variant="glow" padding={16} style={styles.summaryCard}>
+            <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Grand Total</Text>
+            <Text style={[styles.summaryAmount, { color: colors.primary }]}>{formatCurrency(grandTotal)}</Text>
+          </Card>
+
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Itemized Breakdown</Text>
+          {items.map((item, idx) => (
+            <Card key={idx} variant="glass" padding={14} style={styles.itemRowCard}>
+              <View style={styles.itemMainRow}>
+                <TextInput
+                  placeholder="Item description (e.g. Pizza)"
+                  placeholderTextColor={colors.gray400}
+                  value={item.name}
+                  onChangeText={(v) => handleUpdateItem(idx, 'name', v)}
+                  style={[styles.itemNameInput, { color: colors.textPrimary, borderBottomColor: colors.border }]}
+                />
+                <Pressable onPress={() => handleRemoveItem(idx)} style={{ padding: 4 }}>
+                  <Trash2 size={16} color={colors.danger} />
+                </Pressable>
+              </View>
+
+              <View style={styles.itemDetailsRow}>
+                <View style={styles.inputCol}>
+                  <Text style={[styles.colLabel, { color: colors.textSecondary }]}>Qty</Text>
+                  <TextInput
+                    placeholder="1"
+                    placeholderTextColor={colors.gray400}
+                    keyboardType="number-pad"
+                    value={item.qty.toString()}
+                    onChangeText={(v) => handleUpdateItem(idx, 'qty', v)}
+                    style={[styles.smallInput, { color: colors.textPrimary, borderColor: colors.border }]}
+                  />
+                </View>
+
+                <View style={[styles.inputCol, { flex: 1.5 }]}>
+                  <Text style={[styles.colLabel, { color: colors.textSecondary }]}>Unit Price (₹)</Text>
+                  <TextInput
+                    placeholder="0.00"
+                    placeholderTextColor={colors.gray400}
+                    keyboardType="decimal-pad"
+                    value={item.price === 0 ? '' : item.price.toString()}
+                    onChangeText={(v) => handleUpdateItem(idx, 'price', v)}
+                    style={[styles.smallInput, { color: colors.textPrimary, borderColor: colors.border }]}
+                  />
+                </View>
+
+                <View style={styles.totalCol}>
+                  <Text style={[styles.colLabel, { color: colors.textSecondary }]}>Total</Text>
+                  <Text style={[styles.lineTotalText, { color: colors.textPrimary }]}>
+                    {formatCurrency(item.qty * item.price)}
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          ))}
+
+          <Button
+            title="Add Item"
+            variant="outline"
+            onPress={handleAddItem}
+            style={styles.addBtn}
+          />
+
+          <View style={[styles.taxSection, { borderTopColor: colors.border }]}>
+            <View style={styles.taxRow}>
+              <Text style={[styles.taxLabel, { color: colors.textPrimary }]}>Subtotal</Text>
+              <Text style={[styles.taxValue, { color: colors.textSecondary }]}>{formatCurrency(subtotal)}</Text>
+            </View>
+            <View style={styles.taxRow}>
+              <Text style={[styles.taxLabel, { color: colors.textPrimary }]}>Tax / Tip (₹)</Text>
+              <TextInput
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                placeholderTextColor={colors.gray400}
+                value={tax}
+                onChangeText={setTax}
+                style={[styles.taxInput, { color: colors.textPrimary, borderColor: colors.border }]}
+              />
+            </View>
+          </View>
+
+          <Button
+            title="Save to Bill"
+            onPress={handleSaveReceipt}
+            style={styles.saveBtn}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // Camera capture UI
   return (
     <View style={styles.container}>
       <CameraView
         ref={cameraRef}
         style={styles.camera}
-        facing={facing}
+        facing="back"
         flash={flash}
       >
         {/* Top bar */}
@@ -141,19 +302,13 @@ export default function ScanReceiptScreen() {
             <View style={[styles.corner, styles.bottomRight]} />
           </View>
           <Text style={styles.scanHint}>
-            {scanning ? 'Reading receipt...' : 'Align receipt within the frame'}
+            {scanning ? 'Analyzing receipt image...' : 'Align receipt within the frame'}
           </Text>
         </View>
 
         {/* Bottom controls */}
         <View style={styles.bottomBar}>
-          {/* Flip camera */}
-          <Pressable
-            onPress={() => setFacing(facing === 'back' ? 'front' : 'back')}
-            style={styles.controlBtn}
-          >
-            <RotateCcw size={22} color="#FFFFFF" />
-          </Pressable>
+          <View style={{ width: 52 }} /> {/* Placeholder to balance list btn */}
 
           {/* Capture trigger */}
           <Pressable
@@ -214,7 +369,7 @@ const styles = StyleSheet.create({
   scanOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scanFrame: {
     width: 280,
-    height: 200,
+    height: 360,
     borderRadius: 12,
     position: 'relative',
     backgroundColor: 'rgba(255,255,255,0.03)',
@@ -226,7 +381,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito',
     fontWeight: '700',
     fontSize: 14,
-    marginTop: 20,
+    marginTop: 24,
     textAlign: 'center',
     opacity: 0.85,
   },
@@ -307,4 +462,38 @@ const styles = StyleSheet.create({
   permSubtitle: { fontSize: 14, fontFamily: 'Nunito', fontWeight: '600', textAlign: 'center', lineHeight: 22, marginBottom: 28 },
   permBtn: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 16, marginBottom: 12 },
   permBtnText: { fontSize: 15, fontFamily: 'SpaceGrotesk', fontWeight: '700', color: '#FFFFFF' },
+
+  // Receipt Form styles
+  formHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 56,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  backBtn: { padding: 4 },
+  formHeaderTitle: { fontSize: 18, fontFamily: 'SpaceGrotesk', fontWeight: '700' },
+  formScrollContent: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 },
+  summaryCard: { alignItems: 'center', marginBottom: 24 },
+  summaryLabel: { fontSize: 11, fontFamily: 'Nunito', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
+  summaryAmount: { fontSize: 32, fontFamily: 'SpaceGrotesk', fontWeight: '900', letterSpacing: -1 },
+  sectionTitle: { fontSize: 15, fontFamily: 'SpaceGrotesk', fontWeight: '700', marginBottom: 12 },
+  itemRowCard: { marginVertical: 6 },
+  itemMainRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  itemNameInput: { flex: 1, fontSize: 14, fontFamily: 'Nunito', fontWeight: '700', paddingVertical: 4, marginRight: 12, borderBottomWidth: 1 },
+  itemDetailsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
+  inputCol: { flex: 1 },
+  colLabel: { fontSize: 10, fontFamily: 'Nunito', fontWeight: '700', marginBottom: 6, textTransform: 'uppercase' },
+  smallInput: { borderWidth: 1, borderRadius: 8, height: 36, paddingHorizontal: 8, fontSize: 13, fontFamily: 'SpaceGrotesk', fontWeight: '700' },
+  totalCol: { flex: 1.5, alignItems: 'flex-end', justifyContent: 'center', height: 36 },
+  lineTotalText: { fontSize: 14, fontFamily: 'SpaceGrotesk', fontWeight: '700' },
+  addBtn: { marginVertical: 12 },
+  taxSection: { borderTopWidth: 1, paddingTop: 16, marginTop: 12, gap: 12 },
+  taxRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  taxLabel: { fontSize: 14, fontFamily: 'Nunito', fontWeight: '700' },
+  taxValue: { fontSize: 14, fontFamily: 'SpaceGrotesk', fontWeight: '700' },
+  taxInput: { borderWidth: 1, borderRadius: 8, width: 80, height: 36, textAlign: 'center', fontSize: 13, fontFamily: 'SpaceGrotesk', fontWeight: '700' },
+  saveBtn: { marginTop: 24 },
 });

@@ -31,6 +31,9 @@ interface GroupState {
   setGroups: (groups: GroupInfo[]) => void;
   setActiveGroup: (group: GroupInfo | null) => void;
   addGroup: (group: GroupInfo) => void;
+  updateGroup: (group: GroupInfo) => void;
+  removeGroup: (groupId: string) => void;
+  clearGroups: () => void;
 }
 
 export const useGroupStore = create<GroupState>((set) => ({
@@ -39,4 +42,13 @@ export const useGroupStore = create<GroupState>((set) => ({
   setGroups: (groups) => set({ groups }),
   setActiveGroup: (activeGroup) => set({ activeGroup }),
   addGroup: (group) => set((state) => ({ groups: [group, ...state.groups] })),
+  updateGroup: (group) =>
+    set((state) => ({
+      groups: state.groups.map((g) => (g.id === group.id ? group : g)),
+    })),
+  removeGroup: (groupId) =>
+    set((state) => ({
+      groups: state.groups.filter((g) => g.id !== groupId),
+    })),
+  clearGroups: () => set({ groups: [], activeGroup: null }),
 }));

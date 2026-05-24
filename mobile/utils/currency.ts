@@ -8,34 +8,19 @@ export function formatCurrency(
   currencyCode = 'INR',
   locale?: string
 ): string {
-  // Pick locale based on currency for proper formatting
-  const localeMap: Record<string, string> = {
-    INR: 'en-IN',
-    USD: 'en-US',
-    EUR: 'de-DE',
-    GBP: 'en-GB',
-    AED: 'ar-AE',
-    SGD: 'en-SG',
-    JPY: 'ja-JP',
-    CAD: 'en-CA',
-  };
-  const resolvedLocale = locale || localeMap[currencyCode] || 'en-IN';
+  // Always format as INR/₹ to replace ALL currency symbols with Indian Rupee (₹)
+  const resolvedLocale = 'en-IN';
 
   try {
     return new Intl.NumberFormat(resolvedLocale, {
       style: 'currency',
-      currency: currencyCode,
+      currency: 'INR',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount);
   } catch (error) {
     // Fail-safe manual formatting
-    const symbolMap: Record<string, string> = {
-      USD: '$', EUR: '€', INR: '₹', GBP: '£',
-      AED: 'د.إ', SGD: 'S$', JPY: '¥', CAD: 'C$',
-    };
-    const symbol = symbolMap[currencyCode] || `${currencyCode} `;
     const sign = amount < 0 ? '-' : '';
-    return `${sign}${symbol}${Math.abs(amount).toFixed(2)}`;
+    return `${sign}₹${Math.abs(amount).toFixed(2)}`;
   }
 }

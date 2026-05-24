@@ -166,7 +166,7 @@ export async function getInsights(req: AuthRequest, res: Response) {
     }
 
     if (totalOwedToMe > 0) {
-      insights.push(`You have $${totalOwedToMe.toFixed(2)} in pending assets. Send friendly tap reminders to settle up.`);
+      insights.push(`You have ₹${totalOwedToMe.toFixed(2)} in pending assets. Send friendly tap reminders to settle up.`);
     } else {
       insights.push('All collections are settled. Nice work managing roommate splits.');
     }

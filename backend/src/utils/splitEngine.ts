@@ -50,8 +50,8 @@ export function calculateSplits(
       }
       // Validate percentages sum up to 100%
       const percentageSum = Object.values(customValues).reduce((a, b) => a + b, 0);
-      if (Math.abs(percentageSum - 100) > 0.05) {
-        throw new Error(`Percentages must sum to 100 (got ${percentageSum})`);
+      if (Math.abs(percentageSum - 100) > 1) {
+        throw new Error(`Percentages must sum to 100 (got ${percentageSum.toFixed(1)})`);
       }
 
       const results = members.map(id => {
@@ -77,8 +77,8 @@ export function calculateSplits(
         throw new Error('Custom split requires individual amount values');
       }
       const customTotal = Object.values(customValues).reduce((a, b) => a + b, 0);
-      if (Math.abs(customTotal - total) > 0.02) {
-        throw new Error(`Custom amounts must sum to total expense: ${total} (got ${customTotal})`);
+      if (Math.abs(customTotal - total) > 2) {
+        throw new Error(`Custom amounts must sum to total expense: ${total} (got ${customTotal.toFixed(2)})`);
       }
 
       return members.map(id => {

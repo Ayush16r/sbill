@@ -67,7 +67,7 @@ export default function LoginScreen() {
         {/* Logo */}
         <View style={styles.logoSection}>
           <View style={[styles.logoBadge, { backgroundColor: colors.primary }]}>
-            <Text style={styles.logoSymbol}>$</Text>
+            <Text style={styles.logoSymbol}>₹</Text>
           </View>
           <Text style={[styles.brandTitle, { color: colors.textPrimary }]}>
             Bill <Text style={{ color: colors.primary }}>Split</Text>

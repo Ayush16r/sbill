@@ -39,15 +39,22 @@ interface ExpenseState {
   expenses: ExpenseInfo[];
   setExpenses: (expenses: ExpenseInfo[]) => void;
   addExpense: (expense: ExpenseInfo) => void;
+  updateExpense: (expense: ExpenseInfo) => void;
   removeExpense: (expenseId: string) => void;
+  clearExpenses: () => void;
 }
 
 export const useExpenseStore = create<ExpenseState>((set) => ({
   expenses: [],
   setExpenses: (expenses) => set({ expenses }),
   addExpense: (expense) => set((state) => ({ expenses: [expense, ...state.expenses] })),
+  updateExpense: (expense) =>
+    set((state) => ({
+      expenses: state.expenses.map((e) => (e.id === expense.id ? expense : e)),
+    })),
   removeExpense: (expenseId) => 
     set((state) => ({
       expenses: state.expenses.filter((e) => e.id !== expenseId),
     })),
+  clearExpenses: () => set({ expenses: [] }),
 }));

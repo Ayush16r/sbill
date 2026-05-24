@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Check } from 'lucide-react-native';
@@ -13,7 +13,7 @@ import { CATEGORIES } from '../../constants/categories';
 import api from '../../services/api';
 
 export default function AddExpenseScreen() {
-  const { groupId, scannedTitle } = useLocalSearchParams();
+  const { groupId, scannedTitle, scannedAmount } = useLocalSearchParams();
   const router = useRouter();
   const { colors } = useTheme();
   
@@ -22,15 +22,22 @@ export default function AddExpenseScreen() {
   const setGroups = useGroupStore((state) => state.setGroups);
   const showToast = useUIStore((state) => state.showToast);
 
+  // Group-optional flow states
+  const [billMode, setBillMode] = useState<'group' | 'quick' | 'personal'>((groupId as string) ? 'group' : 'group');
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>((groupId as string) || null);
   const currentGroup = groups.find(g => g.id === selectedGroupId) || null;
 
-  const currency = user?.currency || 'INR';
-  const currencySymbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹';
+  // Search states for Quick Split
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [quickSplitUsers, setQuickSplitUsers] = useState<any[]>(user ? [user] : []);
+
+  const currencySymbol = '₹'; // Force ₹ rupee as standard
 
   // Form parameters — pre-fill from camera scan if available
   const [title, setTitle] = useState((scannedTitle as string) || '');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState((scannedAmount as string) || '');
   const [selectedCategory, setSelectedCategory] = useState('food');
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,14 +56,56 @@ export default function AddExpenseScreen() {
     fetchGroups();
   }, []);
 
-  // Initialize participants from selected group members
+  // Initialize participants based on mode
   useEffect(() => {
-    if (currentGroup) {
-      setSelectedParticipants(currentGroup.members.map(m => m.userId));
+    if (billMode === 'group') {
+      if (currentGroup) {
+        setSelectedParticipants(currentGroup.members.map(m => m.userId));
+      } else {
+        setSelectedParticipants([]);
+      }
+    } else if (billMode === 'quick') {
+      setSelectedParticipants(quickSplitUsers.map(u => u.id));
     } else {
-      setSelectedParticipants([]);
+      setSelectedParticipants(user ? [user.id] : []);
     }
-  }, [currentGroup]);
+  }, [currentGroup, billMode, quickSplitUsers, user]);
+
+  // Debounced search for Quick Split users
+  useEffect(() => {
+    if (billMode !== 'quick' || !searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const delayDebounce = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const response = await api.get(`/auth/search?query=${encodeURIComponent(searchQuery.trim())}`);
+        const currentIds = quickSplitUsers.map(u => u.id);
+        const filtered = response.data.filter((u: any) => !currentIds.includes(u.id));
+        setSearchResults(filtered);
+      } catch (err) {
+        console.error('Search error:', err);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery, billMode, quickSplitUsers]);
+
+  const addQuickSplitUser = (u: any) => {
+    setQuickSplitUsers([...quickSplitUsers, u]);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  const removeQuickSplitUser = (userId: string) => {
+    if (userId === user?.id) {
+      showToast('You cannot remove yourself from the split.', 'error');
+      return;
+    }
+    setQuickSplitUsers(quickSplitUsers.filter(u => u.id !== userId));
+  };
 
   const toggleParticipant = (userId: string) => {
     if (selectedParticipants.includes(userId)) {
@@ -70,19 +119,70 @@ export default function AddExpenseScreen() {
     }
   };
 
-  const handleNextToSplit = () => {
-    if (!title) {
+  const handleSavePersonalBill = async () => {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
       showToast('Please enter an expense title.', 'error');
       return;
     }
     
-    const parsedAmount = parseFloat(amount);
+    const parsedAmount = parseFloat(amount.trim());
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       showToast('Please enter a valid amount.', 'error');
       return;
     }
 
-    if (!selectedGroupId) {
+    if (parsedAmount > 10000000) {
+      showToast('Amount is too high (max ₹1,00,00,000).', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const body = {
+        title: trimmedTitle,
+        amount: parsedAmount,
+        category: selectedCategory,
+        groupId: null,
+        splitType: 'EQUAL',
+        participants: [user?.id],
+      };
+      await api.post('/expenses', body);
+      showToast('Personal expense saved successfully! 👤', 'success');
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save personal expense.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNextToSplit = () => {
+    if (loading) return;
+
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      showToast('Please enter an expense title.', 'error');
+      return;
+    }
+    
+    const parsedAmount = parseFloat(amount.trim());
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      showToast('Please enter a valid amount.', 'error');
+      return;
+    }
+
+    if (parsedAmount > 10000000) {
+      showToast('Amount is too high (max ₹1,00,00,000).', 'error');
+      return;
+    }
+
+    if (billMode === 'personal') {
+      handleSavePersonalBill();
+      return;
+    }
+
+    if (billMode === 'group' && !selectedGroupId) {
       showToast('Please select a group first.', 'error');
       return;
     }
@@ -96,11 +196,16 @@ export default function AddExpenseScreen() {
     router.push({
       pathname: '/expense/split',
       params: {
-        title,
+        title: trimmedTitle,
         amount: parsedAmount.toString(),
         category: selectedCategory,
-        groupId: selectedGroupId,
+        groupId: billMode === 'group' ? (selectedGroupId || '') : '',
         participants: JSON.stringify(selectedParticipants),
+        participantProfiles: JSON.stringify(
+          billMode === 'group'
+            ? currentGroup?.members.map(m => ({ id: m.userId, name: m.name })) || []
+            : quickSplitUsers.map(u => ({ id: u.id, name: u.name }))
+        ),
       },
     });
   };
@@ -144,13 +249,70 @@ export default function AddExpenseScreen() {
           </View>
         </View>
 
-        {/* Group Selector (only if groupId was not passed in url search params) */}
+        {/* Split Mode Selector (only if not pre-directed by groupId) */}
         {!groupId && (
+          <View style={styles.modeContainer}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Split Mode</Text>
+            <View style={[styles.modeSelector, { backgroundColor: colors.surfaceElevated }]}>
+              <Pressable
+                onPress={() => setBillMode('group')}
+                style={[
+                  styles.modeButton,
+                  billMode === 'group' && { 
+                    backgroundColor: colors.surface, 
+                    shadowColor: '#000', 
+                    shadowOffset: { width: 0, height: 1 }, 
+                    shadowOpacity: 0.1, 
+                    shadowRadius: 2, 
+                    elevation: 1 
+                  }
+                ]}
+              >
+                <Text style={[styles.modeButtonText, { color: billMode === 'group' ? colors.primary : colors.textSecondary }]}>Group Split</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setBillMode('quick')}
+                style={[
+                  styles.modeButton,
+                  billMode === 'quick' && { 
+                    backgroundColor: colors.surface, 
+                    shadowColor: '#000', 
+                    shadowOffset: { width: 0, height: 1 }, 
+                    shadowOpacity: 0.1, 
+                    shadowRadius: 2, 
+                    elevation: 1 
+                  }
+                ]}
+              >
+                <Text style={[styles.modeButtonText, { color: billMode === 'quick' ? colors.primary : colors.textSecondary }]}>Quick Split</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setBillMode('personal')}
+                style={[
+                  styles.modeButton,
+                  billMode === 'personal' && { 
+                    backgroundColor: colors.surface, 
+                    shadowColor: '#000', 
+                    shadowOffset: { width: 0, height: 1 }, 
+                    shadowOpacity: 0.1, 
+                    shadowRadius: 2, 
+                    elevation: 1 
+                  }
+                ]}
+              >
+                <Text style={[styles.modeButtonText, { color: billMode === 'personal' ? colors.primary : colors.textSecondary }]}>Personal</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {/* Group Selector (only for Group mode if groupId not in search params) */}
+        {billMode === 'group' && !groupId && (
           <View style={{ marginBottom: 24 }}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Choose Group</Text>
             {groups.length === 0 ? (
               <Text style={{ color: colors.textSecondary, fontFamily: 'Nunito', fontSize: 12, marginHorizontal: 24 }}>
-                You aren't in any groups yet. Create a group first.
+                You aren't in any groups yet. Create a group first or try Quick Split.
               </Text>
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catScroll}>
@@ -205,62 +367,152 @@ export default function AddExpenseScreen() {
           ))}
         </ScrollView>
 
-        {/* Split participants selection check grid */}
-        {currentGroup ? (
+        {/* Split participants selection based on Mode */}
+        {billMode === 'group' && (
+          currentGroup ? (
+            <View style={styles.participantsSection}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 4, marginLeft: 0 }]}>
+                Split With
+              </Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary, marginLeft: 0 }]}>
+                Choose who shares the cost of this bill
+              </Text>
+
+              {currentGroup.members.map((m) => {
+                const isChecked = selectedParticipants.includes(m.userId);
+                return (
+                  <Pressable
+                    key={m.userId}
+                    onPress={() => toggleParticipant(m.userId)}
+                    style={[
+                      styles.participantRow,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: isChecked ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <View style={styles.participantMeta}>
+                      <View style={[styles.avatarCircle, { backgroundColor: colors.surfaceElevated }]}>
+                        <Text style={styles.avatarLetter}>{m.name.charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <Text style={[styles.participantName, { color: colors.textPrimary }]}>
+                        {m.name}
+                      </Text>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.checkbox,
+                        {
+                          backgroundColor: isChecked ? colors.primary : 'transparent',
+                          borderColor: isChecked ? colors.primary : colors.border,
+                        },
+                      ]}
+                    >
+                      {isChecked && <Check size={12} color={colors.primaryDeep} />}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={styles.participantsSection}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 4, marginLeft: 0 }]}>
+                Split With
+              </Text>
+              <Card variant="glass" padding={20} style={{ alignItems: 'center' }}>
+                <Text style={{ color: colors.textSecondary, fontFamily: 'Nunito', fontSize: 13, textAlign: 'center' }}>
+                  Please select a group first to split this expense.
+                </Text>
+              </Card>
+            </View>
+          )
+        )}
+
+        {billMode === 'quick' && (
           <View style={styles.participantsSection}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 4 }]}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 4, marginLeft: 0 }]}>
               Split With
             </Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
-              Choose who shares the cost of this bill
+            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary, marginLeft: 0 }]}>
+              Search for users to split this bill with
             </Text>
 
-            {currentGroup.members.map((m) => {
-              const isChecked = selectedParticipants.includes(m.userId);
+            {/* Search Input */}
+            <View style={{ marginBottom: 16 }}>
+              <Input
+                placeholder="Search by name or email..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                style={{ height: 44 }}
+              />
+              {searching && (
+                <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 4, fontFamily: 'Nunito' }}>Searching...</Text>
+              )}
+              {searchResults.length > 0 && (
+                <View style={[styles.searchResultsContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  {searchResults.map((u) => (
+                    <Pressable
+                      key={u.id}
+                      onPress={() => addQuickSplitUser(u)}
+                      style={[styles.searchResultRow, { borderBottomColor: colors.border }]}
+                    >
+                      <View style={[styles.avatarCircle, { backgroundColor: colors.surfaceElevated }]}>
+                        <Text style={styles.avatarLetter}>{u.name.charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <View style={{ marginLeft: 12 }}>
+                        <Text style={[styles.participantName, { color: colors.textPrimary, marginLeft: 0 }]}>{u.name}</Text>
+                        <Text style={{ fontSize: 11, color: colors.textSecondary, fontFamily: 'Nunito' }}>{u.email}</Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Selected quick split participants */}
+            {quickSplitUsers.map((u) => {
+              const isSelf = u.id === user?.id;
               return (
-                <Pressable
-                  key={m.userId}
-                  onPress={() => toggleParticipant(m.userId)}
+                <View
+                  key={u.id}
                   style={[
                     styles.participantRow,
                     {
                       backgroundColor: colors.surface,
-                      borderColor: isChecked ? colors.primary : colors.border,
+                      borderColor: colors.primary,
                     },
                   ]}
                 >
                   <View style={styles.participantMeta}>
                     <View style={[styles.avatarCircle, { backgroundColor: colors.surfaceElevated }]}>
-                      <Text style={styles.avatarLetter}>{m.name.charAt(0).toUpperCase()}</Text>
+                      <Text style={styles.avatarLetter}>{u.name.charAt(0).toUpperCase()}</Text>
                     </View>
                     <Text style={[styles.participantName, { color: colors.textPrimary }]}>
-                      {m.name}
+                      {u.name} {isSelf && '(You)'}
                     </Text>
                   </View>
 
-                  <View
-                    style={[
-                      styles.checkbox,
-                      {
-                        backgroundColor: isChecked ? colors.primary : 'transparent',
-                        borderColor: isChecked ? colors.primary : colors.border,
-                      },
-                    ]}
-                  >
-                    {isChecked && <Check size={12} color={colors.primaryDeep} />}
-                  </View>
-                </Pressable>
+                  {!isSelf && (
+                    <Pressable
+                      onPress={() => removeQuickSplitUser(u.id)}
+                      style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+                    >
+                      <Text style={{ color: colors.danger, fontSize: 13, fontFamily: 'SpaceGrotesk', fontWeight: '700' }}>Remove</Text>
+                    </Pressable>
+                  )}
+                </View>
               );
             })}
           </View>
-        ) : (
+        )}
+
+        {billMode === 'personal' && (
           <View style={styles.participantsSection}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 4 }]}>
-              Split With
-            </Text>
             <Card variant="glass" padding={20} style={{ alignItems: 'center' }}>
               <Text style={{ color: colors.textSecondary, fontFamily: 'Nunito', fontSize: 13, textAlign: 'center' }}>
-                Please select a group first to split this expense.
+                Personal bill mode. This expense will be saved just for you.
               </Text>
             </Card>
           </View>
@@ -268,7 +520,8 @@ export default function AddExpenseScreen() {
 
         {/* Navigation Action CTA Button */}
         <Button
-          title="Configure Split"
+          title={billMode === 'personal' ? 'Save Personal Bill' : 'Configure Split'}
+          loading={loading}
           onPress={handleNextToSplit}
           style={styles.submitBtn}
         />
@@ -276,8 +529,6 @@ export default function AddExpenseScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-// (TextInput imported at top)
 
 const styles = StyleSheet.create({
   container: {
@@ -326,6 +577,27 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     width: '60%',
     textAlign: 'left',
+  },
+  modeContainer: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
+  },
+  modeSelector: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    padding: 4,
+    marginTop: 8,
+  },
+  modeButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  modeButtonText: {
+    fontSize: 13,
+    fontFamily: 'SpaceGrotesk',
+    fontWeight: '700',
   },
   sectionTitle: {
     fontSize: 15,
@@ -408,6 +680,19 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  searchResultsContainer: {
+    borderWidth: 1,
+    borderRadius: 12,
+    marginTop: 4,
+    maxHeight: 200,
+    overflow: 'hidden',
+  },
+  searchResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
   },
   submitBtn: {
     marginHorizontal: 24,

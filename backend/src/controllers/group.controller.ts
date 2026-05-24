@@ -117,6 +117,7 @@ export async function getGroups(req: AuthRequest, res: Response) {
           name: m.user.name,
           avatar: m.user.avatar,
           role: m.role,
+          balance: m.balance,
         })),
       };
     });

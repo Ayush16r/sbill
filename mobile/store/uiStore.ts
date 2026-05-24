@@ -15,26 +15,35 @@ interface UIState {
   hideToast: () => void;
 }
 
-let toastTimeout: NodeJS.Timeout;
+export const useUIStore = create<UIState>((set) => {
+  let toastTimeout: any = null;
 
-export const useUIStore = create<UIState>((set) => ({
-  isDark: false,
-  isLoading: false,
-  toast: null,
-  setTheme: (isDark) => set({ isDark }),
-  setLoading: (isLoading) => set({ isLoading }),
-  showToast: (message, type = 'info') => {
-    // Clear any active toast timeouts
-    if (toastTimeout) {
-      clearTimeout(toastTimeout);
-    }
-    
-    set({ toast: { message, type } });
-    
-    // Auto-hide toast after 3.5 seconds
-    toastTimeout = setTimeout(() => {
+  return {
+    isDark: false,
+    isLoading: false,
+    toast: null,
+    setTheme: (isDark) => set({ isDark }),
+    setLoading: (isLoading) => set({ isLoading }),
+    showToast: (message, type = 'info') => {
+      // Clear any active toast timeouts
+      if (toastTimeout) {
+        clearTimeout(toastTimeout);
+      }
+      
+      set({ toast: { message, type } });
+      
+      // Auto-hide toast after 3.5 seconds
+      toastTimeout = setTimeout(() => {
+        set({ toast: null });
+        toastTimeout = null;
+      }, 3500);
+    },
+    hideToast: () => {
+      if (toastTimeout) {
+        clearTimeout(toastTimeout);
+        toastTimeout = null;
+      }
       set({ toast: null });
-    }, 3500);
-  },
-  hideToast: () => set({ toast: null }),
-}));
+    },
+  };
+});

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable, RefreshControl, Share } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Pressable, RefreshControl, Share, Clipboard as RNClipboard } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { ArrowLeft, Plus, Send, Share2, Clipboard, ShieldCheck } from 'lucide-react-native';
 import { useAuthStore } from '../../store/authStore';
@@ -22,6 +22,7 @@ export default function GroupDetailScreen() {
   const showToast = useUIStore((state) => state.showToast);
 
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<any | null>(null);
 
   const fetchGroupDetails = async () => {
     try {
@@ -128,7 +129,8 @@ export default function GroupDetailScreen() {
               <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Invite Code</Text>
               <Pressable 
                 onPress={() => {
-                  showToast('Code copied to clipboard!', 'success');
+                  RNClipboard.setString(activeGroup.inviteCode);
+                  showToast('Invite code copied to clipboard! 📋', 'success');
                 }}
                 style={styles.codeRow}
               >
@@ -214,12 +216,55 @@ export default function GroupDetailScreen() {
                 date={expense.date}
                 userOwes={userOwes}
                 currencyCode={expense.currency}
-                onPress={() => showToast(`Expense details: ${expense.title}`, 'info')}
+                onPress={() => setSelectedExpense(expense)}
               />
             );
           })
         )}
       </ScrollView>
+
+      {/* Expense Detail Overlay */}
+      {selectedExpense && (
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setSelectedExpense(null)}
+        >
+          <Pressable 
+            style={[styles.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Expense Details</Text>
+              <Pressable onPress={() => setSelectedExpense(null)} style={styles.closeBtn}>
+                <Text style={{ color: colors.primary, fontFamily: 'SpaceGrotesk', fontWeight: '700' }}>Close</Text>
+              </Pressable>
+            </View>
+
+            <Text style={[styles.detailTitle, { color: colors.textPrimary }]}>{selectedExpense.title}</Text>
+            <Text style={[styles.detailAmount, { color: colors.primary }]}>{formatCurrency(selectedExpense.amount)}</Text>
+            <Text style={[styles.detailMeta, { color: colors.textSecondary }]}>
+              Paid by {selectedExpense.paidById === user?.id ? 'You' : selectedExpense.paidBy?.name || 'Member'} on{' '}
+              {new Date(selectedExpense.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </Text>
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            
+            <Text style={[styles.splitBreakdownTitle, { color: colors.textPrimary }]}>Split Breakdown</Text>
+            <ScrollView style={{ maxHeight: 180 }}>
+              {selectedExpense.splits.map((split: any) => (
+                <View key={split.id} style={styles.splitRow}>
+                  <Text style={[styles.splitMemberName, { color: colors.textPrimary }]}>
+                    {split.userId === user?.id ? 'You' : split.user?.name || 'Member'}
+                  </Text>
+                  <Text style={[styles.splitMemberShare, { color: colors.textSecondary }]}>
+                    {formatCurrency(split.amount)}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -395,5 +440,85 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito',
     fontWeight: '600',
     textAlign: 'center',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+    zIndex: 1000,
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    padding: 24,
+    paddingBottom: 40,
+    maxHeight: '60%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 12,
+    fontFamily: 'SpaceGrotesk',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  detailTitle: {
+    fontSize: 22,
+    fontFamily: 'SpaceGrotesk',
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  detailAmount: {
+    fontSize: 32,
+    fontFamily: 'SpaceGrotesk',
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+  detailMeta: {
+    fontSize: 12,
+    fontFamily: 'Nunito',
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  divider: {
+    height: 1,
+    width: '100%',
+    marginVertical: 12,
+    opacity: 0.1,
+  },
+  splitBreakdownTitle: {
+    fontSize: 14,
+    fontFamily: 'SpaceGrotesk',
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  splitRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  splitMemberName: {
+    fontSize: 13,
+    fontFamily: 'Nunito',
+    fontWeight: '700',
+  },
+  splitMemberShare: {
+    fontSize: 13,
+    fontFamily: 'SpaceGrotesk',
+    fontWeight: '700',
   },
 });

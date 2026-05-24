@@ -8,11 +8,9 @@ import {
   RefreshControl,
   Modal,
   TextInput,
-  SafeAreaView,
-  Image,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Plus, MoreVertical, ChevronRight } from 'lucide-react-native';
+import { Plus } from 'lucide-react-native';
 import { useGroupStore } from '../../store/groupStore';
 import { useUIStore } from '../../store/uiStore';
 import { useTheme } from '../../hooks/useTheme';
@@ -275,8 +273,8 @@ export default function GroupsScreen() {
 
       {/* ── CREATE GROUP MODAL ── */}
       <Modal visible={createModalVisible} transparent animationType="slide" statusBarTranslucent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
+        <Pressable style={styles.modalOverlay} onPress={() => setCreateModalVisible(false)}>
+          <Pressable style={[styles.modalSheet, { backgroundColor: colors.surface, width: '100%' }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalHandle} />
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Create New Group</Text>
 
@@ -333,14 +331,14 @@ export default function GroupsScreen() {
                 style={styles.halfBtn}
               />
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* ── JOIN GROUP MODAL ── */}
       <Modal visible={joinModalVisible} transparent animationType="slide" statusBarTranslucent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
+        <Pressable style={styles.modalOverlay} onPress={() => setJoinModalVisible(false)}>
+          <Pressable style={[styles.modalSheet, { backgroundColor: colors.surface, width: '100%' }]} onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalHandle} />
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Join Group</Text>
             <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
@@ -367,8 +365,8 @@ export default function GroupsScreen() {
                 style={styles.halfBtn}
               />
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
