@@ -5,10 +5,10 @@
   "main": "src/app.ts",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
-    "build": "npx prisma generate && npx tsc",
+    "build": "node node_modules/prisma/build/index.js generate && node node_modules/typescript/bin/tsc",
     "start": "node dist/app.js",
-    "prisma:generate": "npx prisma generate",
-    "prisma:db": "npx prisma db push"
+    "prisma:generate": "node node_modules/prisma/build/index.js generate",
+    "prisma:db": "node node_modules/prisma/build/index.js db push"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
