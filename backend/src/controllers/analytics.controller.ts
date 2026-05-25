@@ -182,3 +182,51 @@ export async function getInsights(req: AuthRequest, res: Response) {
     return res.status(500).json({ error: 'Failed to fetch insights. ' + error.message });
   }
 }
+
+export async function getCashflow(req: AuthRequest, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const now = new Date();
+    const months = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const startDate = new Date(date.getFullYear(), date.getMonth(), 1);
+      const endDate = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const transactions = await prisma.personalTransaction.findMany({
+        where: {
+          userId,
+          date: { gte: startDate, lte: endDate },
+        },
+      });
+
+      const income = transactions
+        .filter(t => t.type === 'INCOME')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const expenses = transactions
+        .filter(t => t.type === 'EXPENSE')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const monthLabel = startDate.toLocaleString('en-US', { month: 'short' });
+
+      months.push({
+        month: date.getMonth() + 1,
+        year: date.getFullYear(),
+        label: monthLabel,
+        income: +income.toFixed(2),
+        expenses: +expenses.toFixed(2),
+        net: +(income - expenses).toFixed(2),
+      });
+    }
+
+    return res.json({ months });
+  } catch (error: any) {
+    console.error('Get cashflow error:', error);
+    return res.status(500).json({ error: 'Failed to fetch cashflow. ' + error.message });
+  }
+}
+

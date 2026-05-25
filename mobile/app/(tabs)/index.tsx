@@ -21,10 +21,21 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { useExpenseStore } from '../../store/expenseStore';
 import { useGroupStore } from '../../store/groupStore';
+import { useTransactionStore } from '../../store/transactionStore';
+import { useBudgetStore } from '../../store/budgetStore';
+import { useAccountStore } from '../../store/accountStore';
 import { useUIStore } from '../../store/uiStore';
 import { useTheme } from '../../hooks/useTheme';
 import { formatCurrency } from '../../utils/currency';
 import api from '../../services/api';
+
+// New dashboard components
+import MonthSelector from '../../components/dashboard/MonthSelector';
+import SummaryCards from '../../components/dashboard/SummaryCards';
+import BalanceCard from '../../components/dashboard/BalanceCard';
+import QuickActions from '../../components/dashboard/QuickActions';
+import BudgetOverview from '../../components/dashboard/BudgetOverview';
+import RecentTransactions from '../../components/dashboard/RecentTransactions';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -43,9 +54,20 @@ export default function HomeDashboard() {
   const setGroups = useGroupStore((state) => state.setGroups);
   const showToast = useUIStore((state) => state.showToast);
 
+  // Personal expense tracking stores
+  const {
+    transactions,
+    summary,
+    selectedMonth,
+    fetchTransactions,
+    fetchSummary,
+    setSelectedMonth,
+  } = useTransactionStore();
+  const { budgets, fetchBudgets } = useBudgetStore();
+  const { accounts, fetchAccounts, getDefaultAccount, getTotalBalance } = useAccountStore();
+
   const [refreshing, setRefreshing] = useState(false);
   const [balanceVisible, setBalanceVisible] = useState(true);
-  const [cardIndex, setCardIndex] = useState(0); // 0 = Combined, 1 = Owed to Me, 2 = Owed to Others
   const [analytics, setAnalytics] = useState({
     totalSpent: 0.0,
     totalBalance: 0.0,
@@ -71,15 +93,25 @@ export default function HomeDashboard() {
     }
   };
 
+  const fetchAllData = async () => {
+    await Promise.all([
+      fetchData(),
+      fetchTransactions(),
+      fetchSummary(),
+      fetchBudgets(),
+      fetchAccounts(),
+    ]);
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchData();
+    await fetchAllData();
     setRefreshing(false);
   };
 
   useFocusEffect(
     useCallback(() => {
-      fetchData();
+      fetchAllData();
     }, [])
   );
 
@@ -88,14 +120,7 @@ export default function HomeDashboard() {
     (m, i, arr) => arr.findIndex((x) => x.userId === m.userId) === i && m.userId !== user?.id
   );
 
-  const getCategoryEmoji = (cat: string) => {
-    const map: Record<string, string> = {
-      food: '🍕', travel: '✈️', rent: '🏠', shopping: '🛍️',
-      party: '🎉', utilities: '⚡', transport: '🚗', health: '💊',
-      entertainment: '🎬', other: '📦',
-    };
-    return map[cat?.toLowerCase()] || '📦';
-  };
+  const defaultAccount = getDefaultAccount();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -134,104 +159,33 @@ export default function HomeDashboard() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        {/* ── Balance Card (dark, like mockup) ── */}
-        <View style={styles.balanceCard}>
-          <View style={styles.balanceCardInner}>
-            {/* Card top row */}
-            <View style={styles.cardTopRow}>
-              <View>
-                <Text style={styles.cardUserName}>{user?.name || 'User'}</Text>
-                <Text style={styles.cardIdText}>ID: #16377A</Text>
-              </View>
-              <View style={[styles.statusBadge, { backgroundColor: 'rgba(34,197,94,0.2)' }]}>
-                <View style={styles.statusDot} />
-                <Text style={styles.statusText}>Active</Text>
-              </View>
-            </View>
+        {/* ── 1. Month Selector ── */}
+        <MonthSelector
+          month={selectedMonth.month}
+          year={selectedMonth.year}
+          onChange={setSelectedMonth}
+        />
 
-            {/* Balance */}
-            <View style={styles.balanceRow}>
-              <View>
-                <Text style={styles.balanceLabel}>
-                  {cardIndex === 0 ? 'Total Balance' : cardIndex === 1 ? 'Owed to Me' : 'Owed to Others (Total Owed)'}
-                </Text>
-                <View style={styles.balanceAmtRow}>
-                  <Text style={styles.balanceAmount}>
-                    {balanceVisible
-                      ? formatCurrency(
-                          cardIndex === 0
-                            ? analytics.totalBalance
-                            : cardIndex === 1
-                            ? analytics.owedToMe
-                            : analytics.owedToOthers,
-                          currency
-                        )
-                      : '••••••'}
-                  </Text>
-                  <Pressable
-                    onPress={() => setBalanceVisible(!balanceVisible)}
-                    style={styles.eyeBtn}
-                  >
-                    {balanceVisible
-                      ? <Eye size={16} color="rgba(255,255,255,0.7)" />
-                      : <EyeOff size={16} color="rgba(255,255,255,0.7)" />}
-                  </Pressable>
-                </View>
-              </View>
-            </View>
+        {/* ── 2. Income + Expense Cards ── */}
+        <SummaryCards
+          income={summary?.income || 0}
+          expenses={summary?.expenses || 0}
+        />
 
-            {/* Card navigation row */}
-            <View style={styles.cardNavRow}>
-              <Pressable
-                onPress={() => setCardIndex((prev) => (prev === 0 ? 2 : prev - 1))}
-                style={styles.cardNavArrow}
-              >
-                <Text style={styles.cardNavArrowText}>‹</Text>
-              </Pressable>
-              <Text style={styles.cardNavLabel}>
-                {cardIndex === 0 ? 'Combined View' : cardIndex === 1 ? 'Assets View' : 'Debts View'}
-              </Text>
-              <Pressable
-                onPress={() => setCardIndex((prev) => (prev === 2 ? 0 : prev + 1))}
-                style={styles.cardNavArrow}
-              >
-                <Text style={styles.cardNavArrowText}>›</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
+        {/* ── 3. Balance Card ── */}
+        <BalanceCard
+          balance={summary?.balance || 0}
+          bankName={defaultAccount?.name}
+          bankBalance={defaultAccount?.balance}
+        />
 
-        {/* ── Earning Dynamics ── */}
-        <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Earning Dynamics</Text>
-            <View style={styles.legendRow}>
-              <View style={[styles.legendDot, { backgroundColor: '#22C55E' }]} />
-              <Text style={[styles.legendText, { color: colors.textSecondary }]}>Normal</Text>
-              <View style={[styles.legendDot, { backgroundColor: '#3B82F6', marginLeft: 8 }]} />
-              <Text style={[styles.legendText, { color: colors.textSecondary }]}>Actual</Text>
-            </View>
-          </View>
+        {/* ── 4. Quick Actions ── */}
+        <QuickActions />
 
-          {/* Simple bar chart */}
-          <View style={styles.chartArea}>
-            {['Jan', 'Feb', 'Mar', 'Apr'].map((month, i) => {
-              const normalHeights = [40, 60, 35, 55];
-              const actualHeights = [50, 45, 65, 40];
-              return (
-                <View key={month} style={styles.chartGroup}>
-                  <View style={styles.barPair}>
-                    <View style={[styles.bar, { height: normalHeights[i], backgroundColor: '#22C55E' }]} />
-                    <View style={[styles.bar, { height: actualHeights[i], backgroundColor: '#3B82F6' }]} />
-                  </View>
-                  <Text style={[styles.chartLabel, { color: colors.textSecondary }]}>{month}</Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
+        {/* ── 5. Separator ── */}
+        <View style={[styles.separator, { backgroundColor: colors.border }]} />
 
-        {/* ── Split the Bill section (Quick Actions) ── */}
+        {/* ── 6. Split the Bill section (existing BillSplit) ── */}
         <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Split the Bill</Text>
           {groups.length > 0 && (
@@ -300,51 +254,14 @@ export default function HomeDashboard() {
           </Pressable>
         </View>
 
-        {/* ── Latest News / Recent Transactions ── */}
-        <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Recent Transactions</Text>
-            <Pressable onPress={() => router.push('/(tabs)/analytics')}>
-              <Text style={[styles.seeAllText, { color: colors.primary }]}>See More</Text>
-            </Pressable>
-          </View>
+        {/* ── 7. Monthly Budget Overview ── */}
+        <BudgetOverview budgets={budgets} />
 
-          {expenses.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>📦</Text>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No transactions yet. Add your first expense!
-              </Text>
-            </View>
-          ) : (
-            expenses.slice(0, 5).map((expense) => {
-              const mySplit = expense.splits?.find((s: any) => s.userId === user?.id);
-              const isOwed = expense.paidById === user?.id;
-              const myShare = mySplit ? mySplit.amount : 0;
-              const netAmount = isOwed ? (expense.amount - myShare) : -myShare;
+        {/* ── 8. Recent Transactions ── */}
+        <RecentTransactions transactions={transactions} />
 
-              return (
-                <View key={expense.id} style={[styles.txRow, { borderBottomColor: colors.border }]}>
-                  <View style={[styles.txIconCircle, { backgroundColor: colors.gray100 }]}>
-                    <Text style={styles.txEmoji}>{getCategoryEmoji(expense.category)}</Text>
-                  </View>
-                  <View style={styles.txInfo}>
-                    <Text style={[styles.txTitle, { color: colors.textPrimary }]} numberOfLines={1}>
-                      {expense.title}
-                    </Text>
-                    <Text style={[styles.txDate, { color: colors.textSecondary }]}>
-                      {new Date(expense.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </Text>
-                  </View>
-                  <Text style={[styles.txAmount, { color: netAmount >= 0 ? colors.success : colors.danger }]}>
-                    {netAmount >= 0 ? '+' : ''}{formatCurrency(netAmount, expense.currency || currency)}
-                  </Text>
-                </View>
-              );
-            })
-          )}
-
-          {/* Latest news banner */}
+        {/* ── Streak News Banner ── */}
+        <View style={{ paddingHorizontal: 20 }}>
           <Pressable 
             onPress={() => showToast('Streak Rewards program is active! Keep adding bills to earn points.', 'success')}
             style={[styles.newsBanner, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
@@ -402,36 +319,12 @@ const styles = StyleSheet.create({
 
   scrollContent: { paddingBottom: 40 },
 
-  // Balance card
-  balanceCard: {
+  // Separator
+  separator: {
+    height: 1,
     marginHorizontal: 20,
-    marginTop: 12,
     marginBottom: 16,
-    borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: '#1C1C1E',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
   },
-  balanceCardInner: { padding: 24 },
-  cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  cardUserName: { fontSize: 16, fontFamily: 'SpaceGrotesk', fontWeight: '700', color: '#FFFFFF' },
-  cardIdText: { fontSize: 11, fontFamily: 'Nunito', fontWeight: '600', color: 'rgba(255,255,255,0.5)', marginTop: 2 },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#22C55E', marginRight: 6 },
-  statusText: { fontSize: 11, fontFamily: 'Nunito', fontWeight: '700', color: '#22C55E' },
-  balanceRow: { marginBottom: 20 },
-  balanceLabel: { fontSize: 12, fontFamily: 'Nunito', fontWeight: '600', color: 'rgba(255,255,255,0.6)', marginBottom: 6 },
-  balanceAmtRow: { flexDirection: 'row', alignItems: 'center' },
-  balanceAmount: { fontSize: 32, fontFamily: 'SpaceGrotesk', fontWeight: '900', color: '#FFFFFF', letterSpacing: -1 },
-  eyeBtn: { marginLeft: 12, padding: 4 },
-  cardNavRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
-  cardNavArrow: { padding: 4 },
-  cardNavArrowText: { fontSize: 20, color: 'rgba(255,255,255,0.6)', fontFamily: 'SpaceGrotesk' },
-  cardNavLabel: { fontSize: 13, fontFamily: 'Nunito', fontWeight: '700', color: 'rgba(255,255,255,0.8)' },
 
   // Section cards
   sectionCard: {
@@ -446,28 +339,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
   sectionTitle: {
     fontSize: 16,
     fontFamily: 'SpaceGrotesk',
     fontWeight: '700',
+    marginBottom: 12,
   },
-  seeAllText: { fontSize: 13, fontFamily: 'Nunito', fontWeight: '700' },
-
-  // Earning dynamics chart
-  legendRow: { flexDirection: 'row', alignItems: 'center' },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontSize: 11, fontFamily: 'Nunito', fontWeight: '600', marginLeft: 4 },
-  chartArea: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', height: 80 },
-  chartGroup: { alignItems: 'center', gap: 6 },
-  barPair: { flexDirection: 'row', gap: 4, alignItems: 'flex-end' },
-  bar: { width: 16, borderRadius: 4 },
-  chartLabel: { fontSize: 11, fontFamily: 'Nunito', fontWeight: '600' },
 
   // Split the Bill
   billInfoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
@@ -520,23 +397,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // Transactions
-  emptyState: { alignItems: 'center', paddingVertical: 20 },
-  emptyEmoji: { fontSize: 36, marginBottom: 8 },
-  emptyText: { fontSize: 13, fontFamily: 'Nunito', fontWeight: '600', textAlign: 'center' },
-  txRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  txIconCircle: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  txEmoji: { fontSize: 18 },
-  txInfo: { flex: 1 },
-  txTitle: { fontSize: 14, fontFamily: 'Nunito', fontWeight: '700', marginBottom: 2 },
-  txDate: { fontSize: 11, fontFamily: 'Nunito', fontWeight: '600' },
-  txAmount: { fontSize: 14, fontFamily: 'SpaceGrotesk', fontWeight: '700' },
-
   // News banner
   newsBanner: {
     flexDirection: 'row',
@@ -544,7 +404,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     padding: 12,
-    marginTop: 12,
+    marginBottom: 16,
     gap: 10,
   },
   newsEmoji: { fontSize: 24 },

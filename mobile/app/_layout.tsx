@@ -71,8 +71,14 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)/signup" options={{ gestureEnabled: false }} />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="expense/add" />
+          <Stack.Screen name="expense/personal" />
           <Stack.Screen name="expense/split" />
           <Stack.Screen name="expense/scan" />
+          <Stack.Screen name="income/add" />
+          <Stack.Screen name="transfer/index" />
+          <Stack.Screen name="budget/index" />
+          <Stack.Screen name="budget/[id]" />
+          <Stack.Screen name="transaction/[id]" />
           <Stack.Screen name="group/[id]" />
           <Stack.Screen name="group/settle" />
           <Stack.Screen name="group/invite" />

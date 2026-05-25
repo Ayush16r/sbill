@@ -3,7 +3,8 @@ import {
   getSummary, 
   getCategoryBreakdown, 
   getGroupComparison, 
-  getInsights 
+  getInsights,
+  getCashflow,
 } from '../controllers/analytics.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 
@@ -16,5 +17,6 @@ router.get('/summary', getSummary);
 router.get('/categories', getCategoryBreakdown);
 router.get('/groups', getGroupComparison);
 router.get('/insights', getInsights);
+router.get('/cashflow', getCashflow);
 
 export default router;

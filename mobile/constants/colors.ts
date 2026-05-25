@@ -37,3 +37,38 @@ export const colors = {
   chartBlue:    '#3B82F6',
   cardDark:     '#1C1C1E',   // Dark card like the Total Balance card in mockup
 };
+
+// Personal Expense Tracking — Transaction Card Colors
+export const TRANSACTION_COLORS = {
+  income: {
+    bg: '#14532D',        // dark green card bg
+    bgLight: '#F0FDF4',   // light mode card bg
+    text: '#4ADE80',      // income amount text
+    icon: '#16A34A',
+  },
+  expense: {
+    bg: '#4A0E0E',        // dark red card bg
+    bgLight: '#FEF2F2',   // light mode card bg
+    text: '#F87171',      // expense amount text
+    icon: '#DC2626',
+  },
+  transfer: {
+    bg: '#1E293B',        // slate card bg
+    bgLight: '#F8FAFC',
+    text: '#94A3B8',
+    icon: '#64748B',
+  },
+  balance: {
+    bg: '#1E2A3A',        // balance card bg
+    text: '#FFFFFF',
+    subtitle: '#94A3B8',
+  },
+};
+
+// Budget Status Colors
+export const BUDGET_STATUS = {
+  safe:     { color: '#4ADE80', icon: '✅', label: 'On track' },
+  warning:  { color: '#FBBF24', icon: '⚠️', label: 'Getting close' },
+  exceeded: { color: '#F87171', icon: '🔴', label: 'Exceeded' },
+};
+

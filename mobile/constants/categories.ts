@@ -18,3 +18,16 @@ export const CATEGORIES: Category[] = [
   { id: 'entertainment', label: 'Fun',       icon: '🎬',  color: '#EDE9FE' },
   { id: 'other',       label: 'Other',       icon: '📦',  color: '#F3F4F6' },
 ];
+
+// Income source categories
+export const INCOME_CATEGORIES: Category[] = [
+  { id: 'salary',     label: 'Salary',      icon: '💼', color: '#D1FAE5' },
+  { id: 'freelance',  label: 'Freelance',   icon: '💻', color: '#DBEAFE' },
+  { id: 'investment', label: 'Investment',  icon: '📈', color: '#EDE9FE' },
+  { id: 'gift',       label: 'Gift',        icon: '🎁', color: '#FCE7F3' },
+  { id: 'rental',     label: 'Rental',      icon: '🏠', color: '#FEF9C3' },
+  { id: 'business',   label: 'Business',    icon: '🏪', color: '#FFEDD5' },
+  { id: 'refund',     label: 'Refund',      icon: '↩️',  color: '#F0FDF4' },
+  { id: 'other',      label: 'Other',       icon: '📦', color: '#F3F4F6' },
+];
+

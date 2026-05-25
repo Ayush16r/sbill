@@ -6,6 +6,9 @@ import groupRoutes from './routes/group.routes';
 import expenseRoutes from './routes/expense.routes';
 import paymentRoutes from './routes/payment.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import transactionRoutes from './routes/transaction.routes';
+import budgetRoutes from './routes/budget.routes';
+import accountRoutes from './routes/account.routes';
 
 // Load environmental variables
 dotenv.config();
@@ -34,6 +37,9 @@ app.use('/api/groups', groupRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/transactions', transactionRoutes);
+app.use('/api/budgets', budgetRoutes);
+app.use('/api/accounts', accountRoutes);
 
 // General health check status endpoint
 app.get('/', (req: Request, res: Response) => {

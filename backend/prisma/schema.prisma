@@ -56,6 +56,95 @@ model User {
   receivedPayments Payment[]      @relation("Receiver")
   notifications   Notification[]
   paymentMethods  PaymentMethod[]
+
+  // Personal Expense Tracking relations
+  personalTransactions PersonalTransaction[]
+  budgets              Budget[]
+  accounts             Account[]
+}
+
+// ── Personal Expense Tracking ──
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum BudgetPeriod {
+  MONTHLY
+  WEEKLY
+  YEARLY
+  CUSTOM
+}
+
+enum AccountType {
+  BANK
+  WALLET
+  CASH
+  CREDIT_CARD
+  UPI
+}
+
+model PersonalTransaction {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String          @db.ObjectId
+  type        TransactionType
+  amount      Float
+  currency    String          @default("INR")
+  category    String?
+  title       String
+  note        String?
+  date        DateTime        @default(now())
+  accountId   String?         @db.ObjectId
+  toAccountId String?         @db.ObjectId
+  receiptUrl  String?
+  groupId     String?         @db.ObjectId
+  expenseId   String?         @db.ObjectId
+  isRecurring Boolean         @default(false)
+  recurringPeriod String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account     Account?        @relation("TransactionAccount", fields: [accountId], references: [id])
+  toAccount   Account?        @relation("TransferToAccount", fields: [toAccountId], references: [id])
+}
+
+model Budget {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String       @db.ObjectId
+  category    String
+  name        String
+  amount      Float
+  currency    String       @default("INR")
+  period      BudgetPeriod @default(MONTHLY)
+  startDate   DateTime
+  endDate     DateTime?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String      @db.ObjectId
+  name         String
+  type         AccountType @default(BANK)
+  balance      Float       @default(0)
+  currency     String      @default("INR")
+  bankName     String?
+  accountLast4 String?
+  icon         String?
+  isDefault    Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions PersonalTransaction[] @relation("TransactionAccount")
+  transfersTo  PersonalTransaction[] @relation("TransferToAccount")
 }
 
 model Group {

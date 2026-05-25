@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Home, Users, BarChart3, User } from 'lucide-react-native';
+import { Home, Users, BarChart3, User, ArrowLeftRight } from 'lucide-react-native';
 import { useTheme } from '../../hooks/useTheme';
 
 export default function TabsLayout() {
@@ -27,7 +27,7 @@ export default function TabsLayout() {
         },
         tabBarLabelStyle: {
           fontFamily: 'Nunito',
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '700',
           marginTop: 2,
         },
@@ -51,6 +51,15 @@ export default function TabsLayout() {
           title: 'Groups',
           tabBarIcon: ({ color, focused }) => (
             <Users color={color} size={22} strokeWidth={focused ? 2.5 : 1.8} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="transactions"
+        options={{
+          title: 'Transactions',
+          tabBarIcon: ({ color, focused }) => (
+            <ArrowLeftRight color={color} size={22} strokeWidth={focused ? 2.5 : 1.8} />
           ),
         }}
       />
